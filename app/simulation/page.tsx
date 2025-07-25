@@ -4,10 +4,14 @@ import { useState, useEffect } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { CompanyCard } from '@/components/simulation/CompanyCard';
 import { DecisionPanel } from '@/components/simulation/DecisionPanel';
 import { EventsFeed } from '@/components/simulation/EventsFeed';
 import { SimulationStats } from '@/components/simulation/SimulationStats';
+import { AILogPanel } from '@/components/simulation/AILogPanel';
+import { CreateCompanyModal } from '@/components/simulation/CreateCompanyModal';
+import { CompanyDetailsModal } from '@/components/simulation/CompanyDetailsModal';
 import { WebSocketConnection } from '@/lib/websocket';
 import { Play, Pause, Square, Settings, Plus, Network } from 'lucide-react';
 import Link from 'next/link';
@@ -23,11 +27,18 @@ interface Company {
 
 interface SimulationStatus {
   status: string;
-  current_step: number;
+  mode: string;
+  current_round: number;
+  current_phase: string;
+  last_round_time: string;
   companies_count: number;
   employees_count: number;
   decisions_count: number;
   events_count: number;
+  ai_stats?: {
+    total_calls: number;
+    total_cost: number;
+  };
 }
 
 export default function SimulationPage() {
@@ -37,6 +48,10 @@ export default function SimulationPage() {
   const [wsConnection, setWsConnection] = useState<WebSocketConnection | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [showCreateModal, setShowCreateModal] = useState(false);
+  const [showDetailsModal, setShowDetailsModal] = useState(false);
+  const [detailsCompanyId, setDetailsCompanyId] = useState<string | null>(null);
+  const [showResetConfirm, setShowResetConfirm] = useState(false);
 
   // 初始化WebSocket连接
   useEffect(() => {
@@ -109,10 +124,10 @@ export default function SimulationPage() {
     }
   };
 
-  // 手动步进
-  const manualStep = async () => {
+  // 手动轮次
+  const manualRound = async () => {
     try {
-      const response = await fetch('/api/simulation/step', {
+      const response = await fetch('/api/simulation/round', {
         method: 'POST',
       });
       
@@ -120,11 +135,80 @@ export default function SimulationPage() {
         await loadSimulationData();
       } else {
         const errorData = await response.json();
-        setError(errorData.detail || 'Failed to execute step');
+        setError(errorData.detail || 'Failed to execute round');
       }
     } catch (err) {
-      setError('Error executing manual step');
-      console.error('Error executing manual step:', err);
+      setError('Error executing manual round');
+      console.error('Error executing manual round:', err);
+    }
+  };
+  
+  // 切换游戏模式
+  const toggleGameMode = async () => {
+    try {
+      const newMode = simulationStatus?.mode === 'auto' ? 'manual' : 'auto';
+      const response = await fetch('/api/simulation/mode', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ mode: newMode }),
+      });
+      
+      if (response.ok) {
+        await loadSimulationData();
+      } else {
+        const errorData = await response.json();
+        setError(errorData.detail || 'Failed to change mode');
+      }
+    } catch (err) {
+      setError('Error changing game mode');
+      console.error('Error changing game mode:', err);
+    }
+  };
+  
+  // 重置游戏
+  const resetGame = async () => {
+    try {
+      const response = await fetch('/api/simulation/reset', {
+        method: 'POST',
+      });
+      
+      if (response.ok) {
+        await loadSimulationData();
+        setShowResetConfirm(false);
+      } else {
+        const errorData = await response.json();
+        setError(errorData.detail || 'Failed to reset game');
+      }
+    } catch (err) {
+      setError('Error resetting game');
+      console.error('Error resetting game:', err);
+    }
+  };
+
+  // 处理双击公司
+  const handleCompanyDoubleClick = (companyId: string) => {
+    setDetailsCompanyId(companyId);
+    setShowDetailsModal(true);
+  };
+
+  // 处理创建公司成功
+  const handleCreateSuccess = () => {
+    loadSimulationData();
+  };
+
+  // 处理关闭详情模态框
+  const handleCloseDetailsModal = () => {
+    setShowDetailsModal(false);
+    setDetailsCompanyId(null);
+  };
+
+  // 处理点击空白处取消选中
+  const handleContainerClick = (e: React.MouseEvent) => {
+    // 如果点击的是容器本身（而不是子元素），则取消选中
+    if (e.target === e.currentTarget) {
+      setSelectedCompany(null);
     }
   };
 
@@ -139,28 +223,39 @@ export default function SimulationPage() {
   }
 
   return (
-    <div className="container mx-auto p-6 space-y-6">
+    <div 
+      className="container mx-auto p-6 space-y-6"
+      onClick={handleContainerClick}
+    >
       {/* 头部控制区 */}
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-3xl font-bold">AI商战模拟系统</h1>
           <p className="text-muted-foreground">
-            实时观察AI公司的商业决策与竞争过程
+            轮次制AI商战模拟 - 观察集权与去中心化公司的决策差异
           </p>
         </div>
         
         <div className="flex items-center space-x-2">
           {simulationStatus && (
-            <Badge variant={simulationStatus.status === 'running' ? 'default' : 'secondary'}>
-              {simulationStatus.status === 'running' ? '运行中' : 
-               simulationStatus.status === 'paused' ? '已暂停' : '已停止'}
-            </Badge>
+            <>
+              <Badge variant={simulationStatus.status === 'running' ? 'default' : 'secondary'}>
+                {simulationStatus.status === 'running' ? '运行中' : 
+                 simulationStatus.status === 'paused' ? '已暂停' : '已停止'}
+              </Badge>
+              <Badge variant="outline">
+                {simulationStatus.mode === 'auto' ? '自动模式' : '手动模式'}
+              </Badge>
+              <Badge variant="outline">
+                第{simulationStatus.current_round}轮
+              </Badge>
+            </>
           )}
           
           <Link href="/situation">
             <Button size="sm" variant="secondary">
               <Network className="h-4 w-4 mr-1" />
-              态势屏幕
+              时间线
             </Button>
           </Link>
           
@@ -202,13 +297,46 @@ export default function SimulationPage() {
             停止
           </Button>
           
+          {/* 手动轮次控制按钮 */}
+          {simulationStatus?.mode === 'manual' && (
+            <Button
+              onClick={manualRound}
+              disabled={simulationStatus?.status !== 'running'}
+              size="sm"
+              variant="default"
+            >
+              <Play className="h-4 w-4 mr-1" />
+              执行轮次
+            </Button>
+          )}
+          
+          {simulationStatus?.mode === 'auto' && (
+            <Button
+              onClick={manualRound}
+              disabled={simulationStatus?.status !== 'running'}
+              size="sm"
+              variant="outline"
+            >
+              <Play className="h-4 w-4 mr-1" />
+              手动轮次
+            </Button>
+          )}
+          
           <Button
-            onClick={manualStep}
-            disabled={simulationStatus?.status !== 'running'}
+            onClick={toggleGameMode}
+            disabled={simulationStatus?.status === 'stopped'}
             size="sm"
             variant="outline"
           >
-            单步执行
+            {simulationStatus?.mode === 'auto' ? '切换到手动' : '切换到自动'}
+          </Button>
+          
+          <Button
+            onClick={() => setShowResetConfirm(true)}
+            size="sm"
+            variant="destructive"
+          >
+            重置游戏
           </Button>
         </div>
       </div>
@@ -228,24 +356,35 @@ export default function SimulationPage() {
       )}
 
       {/* 主要内容区域 */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+      <div 
+        className="grid grid-cols-1 lg:grid-cols-4 gap-6"
+        onClick={handleContainerClick}
+      >
         {/* 公司列表 */}
         <div className="lg:col-span-2 space-y-4">
           <div className="flex items-center justify-between">
             <h2 className="text-xl font-semibold">参与公司</h2>
-            <Button size="sm" variant="outline">
+            <Button 
+              size="sm" 
+              variant="outline"
+              onClick={() => setShowCreateModal(true)}
+            >
               <Plus className="h-4 w-4 mr-1" />
               添加公司
             </Button>
           </div>
           
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div 
+            className="grid grid-cols-1 md:grid-cols-2 gap-4"
+            onClick={handleContainerClick}
+          >
             {companies.map((company) => (
               <CompanyCard
                 key={company.id}
                 company={company}
                 isSelected={selectedCompany === company.id}
                 onClick={() => setSelectedCompany(company.id)}
+                onDoubleClick={() => handleCompanyDoubleClick(company.id)}
               />
             ))}
           </div>
@@ -259,8 +398,11 @@ export default function SimulationPage() {
           )}
         </div>
 
-        {/* 侧边栏 */}
-        <div className="space-y-4">
+        {/* 侧边栏 1 - 决策面板和事件 */}
+        <div 
+          className="space-y-4"
+          onClick={handleContainerClick}
+        >
           {/* 决策面板 */}
           {selectedCompany && (
             <DecisionPanel companyId={selectedCompany} />
@@ -277,7 +419,56 @@ export default function SimulationPage() {
             </CardContent>
           </Card>
         </div>
+        
+        {/* 侧边栏 2 - AI日志面板 */}
+        <div 
+          className="space-y-4"
+          onClick={handleContainerClick}
+        >
+          <AILogPanel companyId={selectedCompany} />
+        </div>
       </div>
+      
+      {/* 模态框 */}
+      <CreateCompanyModal
+        isOpen={showCreateModal}
+        onClose={() => setShowCreateModal(false)}
+        onSuccess={handleCreateSuccess}
+      />
+      
+      {detailsCompanyId && (
+        <CompanyDetailsModal
+          isOpen={showDetailsModal}
+          onClose={handleCloseDetailsModal}
+          companyId={detailsCompanyId}
+        />
+      )}
+      
+      {/* 重置游戏确认对话框 */}
+      <Dialog open={showResetConfirm} onOpenChange={setShowResetConfirm}>
+        <DialogContent className="sm:max-w-[425px]">
+          <DialogHeader>
+            <DialogTitle>确认重置游戏</DialogTitle>
+            <DialogDescription>
+              重置游戏将会清空所有公司、员工、决策和事件记录，并重新创建初始公司。此操作不可撤销。
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button 
+              variant="outline" 
+              onClick={() => setShowResetConfirm(false)}
+            >
+              取消
+            </Button>
+            <Button 
+              variant="destructive" 
+              onClick={resetGame}
+            >
+              确认重置
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

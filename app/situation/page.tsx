@@ -1,15 +1,15 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import dynamic from 'next/dynamic';
 // 动态导入组件避免SSR问题
-const SituationScreen = dynamic(() => import('@/components/simulation/SituationScreen'), {
+const TimelineScreen = dynamic(() => import('@/components/simulation/TimelineScreen'), {
   ssr: false,
   loading: () => (
     <div className="min-h-screen bg-gray-50 flex items-center justify-center">
       <div className="bg-white p-8 rounded-lg shadow-lg text-center">
         <div className="w-8 h-8 border-2 border-blue-500 border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
-        <p className="text-gray-600">加载态势屏幕组件...</p>
+        <p className="text-gray-600">加载时间线组件...</p>
       </div>
     </div>
   )
@@ -18,6 +18,9 @@ import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { ArrowLeft, Loader2 } from 'lucide-react';
 import Link from 'next/link';
+import NotificationPanel from '@/components/simulation/NotificationPanel';
+// import { ToastProvider, useToast } from '@/components/ui/toast';
+// import { NotificationService, GameEvent } from '@/lib/notification-service';
 
 interface Company {
   id: string;
@@ -46,7 +49,7 @@ interface Decision {
   timestamp: string;
 }
 
-export default function SituationPage() {
+function SituationPageContent() {
   const [companies, setCompanies] = useState<Company[]>([]);
   const [decisions, setDecisions] = useState<Decision[]>([]);
   const [wsEvents, setWsEvents] = useState<any[]>([]);
@@ -55,11 +58,17 @@ export default function SituationPage() {
   const [ws, setWs] = useState<WebSocket | null>(null);
   const [isClient, setIsClient] = useState(false);
   const [isMounted, setIsMounted] = useState(false);
+  const [showNotifications, setShowNotifications] = useState(false);
+  // const { addToast } = useToast();
+  // const notificationService = useRef<NotificationService | null>(null);
   
   // 确保在客户端运行
   useEffect(() => {
     setIsClient(true);
     setIsMounted(true);
+    
+    // 初始化通知服务
+    // notificationService.current = new NotificationService(addToast);
   }, []);
 
   // 获取初始数据 - 仅在客户端挂载后运行
@@ -130,6 +139,13 @@ export default function SituationPage() {
         setCompanies(transformedCompanies);
         setDecisions(transformedDecisions);
         
+        // 更新通知服务的公司和员工数据
+        // if (notificationService.current) {
+        //   notificationService.current.updateCompanies(transformedCompanies);
+        //   const allEmployees = transformedCompanies.flatMap(c => c.employees);
+        //   notificationService.current.updateEmployees(allEmployees);
+        // }
+        
         // 设置初始活动数据
         if (data.activities) {
           setWsEvents(data.activities);
@@ -165,6 +181,20 @@ export default function SituationPage() {
           try {
             const data = JSON.parse(event.data);
             setWsEvents(prev => [...prev.slice(-49), data]); // 保持最近50条事件
+            
+            // 处理通知
+            // if (notificationService.current) {
+            //   const gameEvent: GameEvent = {
+            //     type: data.type || 'unknown',
+            //     description: data.description || data.message || '未知事件',
+            //     timestamp: data.timestamp || new Date().toISOString(),
+            //     company_id: data.company_id || data.company?.id,
+            //     employee_id: data.employee_id || data.employee?.id,
+            //     severity: data.severity || 'info',
+            //     data: data.data || data
+            //   };
+            //   notificationService.current.processEvent(gameEvent);
+            // }
             
             // 根据事件类型更新相应数据
             if (data.type === 'company_update' && data.company) {
@@ -296,22 +326,30 @@ export default function SituationPage() {
               </Button>
             </Link>
             <div className="h-6 border-l border-gray-300"></div>
-            <h1 className="text-xl font-bold">AI商战态势屏幕</h1>
+            <h1 className="text-xl font-bold">AI商战时间线</h1>
           </div>
           
-          <div className="flex items-center space-x-2">
-            <div className={`w-2 h-2 rounded-full ${ws ? 'bg-green-500' : 'bg-red-500'}`}></div>
-            <span className="text-sm text-gray-600">
-              {ws ? '实时连接' : '连接断开'}
-            </span>
+          <div className="flex items-center space-x-4">
+            <NotificationPanel
+              wsEvents={wsEvents}
+              companies={companies}
+              isVisible={showNotifications}
+              onToggle={() => setShowNotifications(!showNotifications)}
+            />
+            <div className="flex items-center space-x-2">
+              <div className={`w-2 h-2 rounded-full ${ws ? 'bg-green-500' : 'bg-red-500'}`}></div>
+              <span className="text-sm text-gray-600">
+                {ws ? '实时连接' : '连接断开'}
+              </span>
+            </div>
           </div>
         </div>
       </div>
 
-      {/* 态势屏幕主体 */}
+      {/* 时间线主体 */}
       <div className="h-[calc(100vh-73px)]">
         {isClient ? (
-          <SituationScreen
+          <TimelineScreen
             companies={companies}
             decisions={decisions}
             wsEvents={wsEvents}
@@ -320,11 +358,19 @@ export default function SituationPage() {
           <div className="h-full flex items-center justify-center">
             <div className="bg-white p-8 rounded-lg shadow-lg text-center">
               <div className="w-8 h-8 border-2 border-blue-500 border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
-              <p className="text-gray-600">初始化态势屏幕...</p>
+              <p className="text-gray-600">初始化时间线...</p>
             </div>
           </div>
         )}
       </div>
     </div>
+  );
+}
+
+export default function SituationPage() {
+  return (
+    // <ToastProvider>
+      <SituationPageContent />
+    // </ToastProvider>
   );
 }

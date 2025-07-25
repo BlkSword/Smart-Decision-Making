@@ -14,6 +14,7 @@ class AIProvider(Enum):
     """AI服务提供商"""
     OPENAI = "openai"
     CLAUDE = "claude"
+    MOONSHOT = "moonshot"
     LOCAL = "local"
 
 @dataclass
@@ -32,6 +33,7 @@ class AIClient:
     def __init__(self):
         self.openai_api_key = os.getenv("OPENAI_API_KEY")
         self.claude_api_key = os.getenv("CLAUDE_API_KEY")
+        self.moonshot_api_key = os.getenv("MOONSHOT_API_KEY")
         self.local_api_url = os.getenv("LOCAL_AI_URL", "http://localhost:11434")
         
         # API调用统计
@@ -44,7 +46,7 @@ class AIClient:
     async def call_ai(
         self,
         prompt: str,
-        provider: AIProvider = AIProvider.OPENAI,
+        provider: AIProvider = AIProvider.MOONSHOT,
         model: str = None,
         temperature: float = 0.7,
         max_tokens: int = 1000,
@@ -64,6 +66,8 @@ class AIClient:
                 response = await self._call_openai(full_prompt, model, temperature, max_tokens)
             elif provider == AIProvider.CLAUDE:
                 response = await self._call_claude(full_prompt, model, temperature, max_tokens)
+            elif provider == AIProvider.MOONSHOT:
+                response = await self._call_moonshot(full_prompt, model, temperature, max_tokens)
             elif provider == AIProvider.LOCAL:
                 response = await self._call_local(full_prompt, model, temperature, max_tokens)
             else:
@@ -126,6 +130,52 @@ class AIClient:
             return AIResponse(
                 content=content,
                 provider=AIProvider.OPENAI,
+                model=model,
+                usage=usage,
+                timestamp=datetime.now(),
+                cost=cost
+            )
+    
+    async def _call_moonshot(
+        self,
+        prompt: str,
+        model: str,
+        temperature: float,
+        max_tokens: int
+    ) -> AIResponse:
+        """调用Moonshot AI API"""
+        if not self.moonshot_api_key:
+            raise ValueError("Moonshot API key not configured")
+        
+        async with httpx.AsyncClient() as client:
+            response = await client.post(
+                "https://api.moonshot.cn/v1/chat/completions",
+                headers={
+                    "Authorization": f"Bearer {self.moonshot_api_key}",
+                    "Content-Type": "application/json"
+                },
+                json={
+                    "model": model,
+                    "messages": [{"role": "user", "content": prompt}],
+                    "temperature": temperature,
+                    "max_tokens": max_tokens
+                },
+                timeout=30.0
+            )
+            
+            if response.status_code != 200:
+                raise Exception(f"Moonshot API error: {response.status_code}")
+            
+            data = response.json()
+            content = data["choices"][0]["message"]["content"]
+            usage = data.get("usage", {})
+            
+            # 计算成本（简化）
+            cost = self._calculate_moonshot_cost(model, usage)
+            
+            return AIResponse(
+                content=content,
+                provider=AIProvider.MOONSHOT,
                 model=model,
                 usage=usage,
                 timestamp=datetime.now(),
@@ -237,6 +287,7 @@ class AIClient:
         defaults = {
             AIProvider.OPENAI: "gpt-3.5-turbo",
             AIProvider.CLAUDE: "claude-3-haiku-20240307",
+            AIProvider.MOONSHOT: "kimi-k2-0711-preview",
             AIProvider.LOCAL: "llama2"
         }
         return defaults.get(provider, "gpt-3.5-turbo")
@@ -259,6 +310,15 @@ class AIClient:
         output_tokens = usage.get("output_tokens", 0)
         
         return (input_tokens * 0.008 + output_tokens * 0.024) / 1000
+    
+    def _calculate_moonshot_cost(self, model: str, usage: Dict[str, Any]) -> float:
+        """计算Moonshot AI API成本"""
+        # 简化的成本计算（基于官方定价）
+        input_tokens = usage.get("prompt_tokens", 0)
+        output_tokens = usage.get("completion_tokens", 0)
+        
+        # Moonshot 的定价参考
+        return (input_tokens * 0.012 + output_tokens * 0.012) / 1000
     
     def _update_stats(self, provider: AIProvider, cost: float):
         """更新调用统计"""

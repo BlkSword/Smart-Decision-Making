@@ -4,7 +4,7 @@ const BACKEND_URL = process.env.BACKEND_URL || 'http://localhost:8000';
 
 export async function POST(request: NextRequest) {
   try {
-    const response = await fetch(`${BACKEND_URL}/api/simulation/round`, {
+    const response = await fetch(`${BACKEND_URL}/api/simulation/reset`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -19,7 +19,7 @@ export async function POST(request: NextRequest) {
     const data = await response.json();
     return NextResponse.json(data);
   } catch (error) {
-    console.error('Error executing simulation round:', error);
+    console.error('Error resetting game:', error);
     return NextResponse.json(
       { error: 'Internal server error' },
       { status: 500 }

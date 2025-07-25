@@ -6,6 +6,7 @@ from dataclasses import dataclass, asdict
 from enum import Enum
 import random
 import json
+import uuid
 
 from .ai_client import AIClient, AIProvider
 from .cache_manager import cache_manager
@@ -22,6 +23,20 @@ class GameState(Enum):
     RUNNING = "running"
     PAUSED = "paused"
     STOPPED = "stopped"
+    ROUND_ENDED = "round_ended"
+
+class GameMode(Enum):
+    """游戏模式"""
+    AUTO = "auto"  # 自动模式
+    MANUAL = "manual"  # 手动模式
+
+class RoundPhase(Enum):
+    """轮次阶段"""
+    FUNDING = "funding"  # 资金分配阶段
+    AI_DECISIONS = "ai_decisions"  # AI决策阶段
+    MARKET_EVENTS = "market_events"  # 市场事件阶段
+    STATUS_UPDATE = "status_update"  # 状态更新阶段
+    ROUND_COMPLETE = "round_complete"  # 轮次完成
 
 @dataclass
 class GameEvent:
@@ -34,10 +49,38 @@ class GameEvent:
     data: Dict[str, Any]
 
 class GameEngine:
-    """游戏引擎核心类"""
+    """游戏引擎核心类 - 轮次制版本"""
+    
+    # 中文姓名库
+    SURNAMES = [
+        "李", "王", "张", "刘", "陈", "杨", "赵", "黄", "周", "吴",
+        "徐", "孙", "朱", "马", "胡", "郭", "林", "何", "高", "罗",
+        "郑", "梁", "谢", "韩", "唐", "尹", "冯", "于", "董", "萧"
+    ]
+    
+    GIVEN_NAMES = [
+        "伟", "明", "杰", "娜", "芳", "宇", "超", "安", "欣", "浩",
+        "洁", "晨", "丹", "莉", "艳", "乐", "辉", "瑞", "智", "清",
+        "靖", "群", "鹏", "东", "恒", "阳", "宁", "海", "勇", "海"
+    ]
+    
+    # AI性格类型
+    AI_PERSONALITIES = [
+        "分析型", "创新型", "实用型", "合作型", "领导型",
+        "谨慎型", "积极型", "平衡型", "精确型", "灵活型",
+        "耐心型", "高效型", "理性型", "情感型", "挑战型"
+    ]
+    
+    # 决策风格
+    DECISION_STYLES = [
+        "数据驱动", "直觉导向", "合作导向", "结果导向",
+        "风险偏好", "稳健优先", "创新导向", "传统导向",
+        "民主参与", "专制决定", "精益导向", "快速策略"
+    ]
     
     def __init__(self):
         self.state = GameState.INITIALIZING
+        self.mode = GameMode.AUTO  # 默认自动模式
         self.companies: Dict[str, Company] = {}
         self.employees: Dict[str, Employee] = {}
         self.decisions: List[Decision] = []
@@ -46,149 +89,641 @@ class GameEngine:
         
         # 游戏配置
         self.config = {
-            "step_interval": 30,  # 游戏步进间隔（秒）
+            "round_interval": 30,  # 轮次间隔（秒）
             "base_funding_rate": 1000,  # 基础资金获取率
             "max_companies": 10,  # 最大公司数量
             "decision_timeout": 60,  # 决策超时时间（秒）
+            "ai_request_delay": 2,  # AI请求间隔（秒）
         }
         
-        self.current_step = 0
-        self.last_step_time = datetime.now()
+        self.current_round = 0
+        self.current_phase = RoundPhase.FUNDING
+        self.last_round_time = datetime.now()
+        self.auto_round_task = None
+        
+        # AI请求队列和处理状态
+        self.ai_request_queue = []
+        self.ai_processing = False
+        
+        # 用于生成唯一员工名字的集合
+        self.used_names = set()
     
     async def initialize(self):
         """初始化游戏引擎"""
         logger.info("Initializing game engine...")
         
+        # 清空使用的名字集合
+        self.used_names.clear()
+        
         # 创建初始公司
         await self._create_initial_companies()
         
         self.state = GameState.RUNNING
-        self.last_step_time = datetime.now()
+        self.last_round_time = datetime.now()
+        
+        # 如果是自动模式，启动自动轮次
+        if self.mode == GameMode.AUTO:
+            await self.start_auto_rounds()
         
         logger.info("Game engine initialized successfully")
+    
+    def _generate_unique_name(self, company_name: str, role: Role) -> str:
+        """生成唯一的员工名字"""
+        max_attempts = 100
+        for _ in range(max_attempts):
+            surname = random.choice(self.SURNAMES)
+            given_name = random.choice(self.GIVEN_NAMES)
+            # 添加随机第二个名字（有时候）
+            if random.random() < 0.3:
+                given_name += random.choice(self.GIVEN_NAMES)
+            
+            full_name = f"{surname}{given_name}"
+            
+            # 检查名字是否已经使用
+            if full_name not in self.used_names:
+                self.used_names.add(full_name)
+                return full_name
+        
+        # 如果生成不了唯一名字，使用数字后缀
+        base_name = f"{random.choice(self.SURNAMES)}{random.choice(self.GIVEN_NAMES)}"
+        counter = 1
+        while f"{base_name}{counter}" in self.used_names:
+            counter += 1
+        final_name = f"{base_name}{counter}"
+        self.used_names.add(final_name)
+        return final_name
+    
+    def _generate_ai_personality(self) -> str:
+        """生成AI性格描述"""
+        personality = random.choice(self.AI_PERSONALITIES)
+        traits = []
+        
+        # 添加一些具体特征
+        if personality == "分析型":
+            traits.extend(["喜欢深入分析数据", "重视逻辑思考", "谨慎做决定"])
+        elif personality == "创新型":
+            traits.extend(["富有创造力", "善于提出新想法", "喜欢挑战传统"])
+        elif personality == "实用型":
+            traits.extend(["注重实际效果", "偏好可行方案", "高效执行者"])
+        elif personality == "合作型":
+            traits.extend(["善于团队合作", "重视沟通协调", "能倒听他人意见"])
+        elif personality == "领导型":
+            traits.extend(["具有领导才能", "善于激励他人", "能够做出困难决定"])
+        else:
+            traits.extend(["工作认真负责", "具有专业精神", "能够快速适应"])
+        
+        # 随机选择部分特征
+        selected_traits = random.sample(traits, min(2, len(traits)))
+        return f"{personality}、{'、'.join(selected_traits)}"
+    
+    def _generate_decision_style(self) -> str:
+        """生成决策风格"""
+        return random.choice(self.DECISION_STYLES)
     
     async def shutdown(self):
         """关闭游戏引擎"""
         logger.info("Shutting down game engine...")
         self.state = GameState.STOPPED
+        
+        # 停止自动轮次
+        if self.auto_round_task:
+            self.auto_round_task.cancel()
+        
         logger.info("Game engine shutdown completed")
     
-    async def step(self) -> List[GameEvent]:
-        """执行游戏步进"""
+    async def start_auto_rounds(self):
+        """启动自动轮次"""
+        if self.mode != GameMode.AUTO:
+            return
+            
+        self.auto_round_task = asyncio.create_task(self._auto_round_loop())
+    
+    async def stop_auto_rounds(self):
+        """停止自动轮次"""
+        if self.auto_round_task:
+            self.auto_round_task.cancel()
+            self.auto_round_task = None
+    
+    async def set_mode(self, mode: GameMode):
+        """设置游戏模式"""
+        self.mode = mode
+        if mode == GameMode.AUTO:
+            await self.start_auto_rounds()
+        else:
+            await self.stop_auto_rounds()
+    
+    async def _auto_round_loop(self):
+        """自动轮次循环"""
+        while self.state == GameState.RUNNING and self.mode == GameMode.AUTO:
+            try:
+                await self.execute_round()
+                await asyncio.sleep(self.config["round_interval"])
+            except asyncio.CancelledError:
+                break
+            except Exception as e:
+                logger.error(f"Error in auto round loop: {e}")
+                await asyncio.sleep(5)  # 错误后等待5秒
+    
+    async def execute_round(self) -> List[GameEvent]:
+        """执行游戏轮次"""
         if self.state != GameState.RUNNING:
             return []
         
-        step_events = []
-        self.current_step += 1
+        round_events = []
+        self.current_round += 1
         current_time = datetime.now()
         
-        logger.info(f"Executing game step {self.current_step}")
+        logger.info(f"Executing game round {self.current_round}")
         
         try:
-            # 1. 资金分配
-            funding_events = await self._distribute_funding()
-            step_events.extend(funding_events)
-            
-            # 2. AI决策处理
-            decision_events = await self._process_ai_decisions()
-            step_events.extend(decision_events)
-            
-            # 3. 市场事件
-            market_events = await self._generate_market_events()
-            step_events.extend(market_events)
-            
-            # 4. 公司状态更新
-            status_events = await self._update_company_status()
-            step_events.extend(status_events)
-            
-            self.last_step_time = current_time
-            
-            # 添加步进完成事件
-            step_complete_event = GameEvent(
-                id=f"step_{self.current_step}",
-                type="step_complete",
+            # 轮次开始事件
+            round_start_event = GameEvent(
+                id=f"round_start_{self.current_round}",
+                type="round_start",
                 timestamp=current_time,
                 company_id=None,
-                description=f"游戏步进 {self.current_step} 完成",
+                description=f"游戏轮次 {self.current_round} 开始",
                 data={
-                    "step": self.current_step,
-                    "companies_count": len(self.companies),
-                    "total_events": len(step_events)
+                    "round": self.current_round,
+                    "mode": self.mode.value,
+                    "companies_count": len(self.companies)
                 }
             )
-            step_events.append(step_complete_event)
+            round_events.append(round_start_event)
             
-        except Exception as e:
-            logger.error(f"Error in game step {self.current_step}: {e}")
-            error_event = GameEvent(
-                id=f"error_{self.current_step}",
-                type="step_error",
+            # 执行轮次的各个阶段
+            for phase in [RoundPhase.FUNDING, RoundPhase.AI_DECISIONS, RoundPhase.MARKET_EVENTS, RoundPhase.STATUS_UPDATE]:
+                self.current_phase = phase
+                phase_events = await self._execute_phase(phase)
+                round_events.extend(phase_events)
+                
+                # 发布阶段完成事件
+                phase_event = GameEvent(
+                    id=f"phase_{self.current_round}_{phase.value}",
+                    type="phase_complete",
+                    timestamp=datetime.now(),
+                    company_id=None,
+                    description=f"轮次 {self.current_round} 阶段 {phase.value} 完成",
+                    data={
+                        "round": self.current_round,
+                        "phase": phase.value,
+                        "events_count": len(phase_events)
+                    }
+                )
+                round_events.append(phase_event)
+            
+            self.current_phase = RoundPhase.ROUND_COMPLETE
+            self.last_round_time = current_time
+            
+            # 添加轮次完成事件
+            round_complete_event = GameEvent(
+                id=f"round_{self.current_round}",
+                type="round_complete",
                 timestamp=current_time,
                 company_id=None,
-                description=f"游戏步进 {self.current_step} 出现错误: {str(e)}",
+                description=f"游戏轮次 {self.current_round} 完成",
+                data={
+                    "round": self.current_round,
+                    "companies_count": len(self.companies),
+                    "total_events": len(round_events),
+                    "mode": self.mode.value
+                }
+            )
+            round_events.append(round_complete_event)
+            
+        except Exception as e:
+            logger.error(f"Error in game round {self.current_round}: {e}")
+            error_event = GameEvent(
+                id=f"error_{self.current_round}",
+                type="round_error",
+                timestamp=current_time,
+                company_id=None,
+                description=f"游戏轮次 {self.current_round} 出现错误: {str(e)}",
                 data={"error": str(e)}
             )
-            step_events.append(error_event)
+            round_events.append(error_event)
         
         # 保存事件到历史记录
-        self.events.extend(step_events)
+        self.events.extend(round_events)
         
-        # 更新缓存
+        # 更新缓存和实时流
+        await self._update_cache_and_streams(round_events)
+        
+        return round_events
+    
+    async def _execute_phase(self, phase: RoundPhase) -> List[GameEvent]:
+        """执行轮次阶段"""
+        phase_events = []
+        
+        logger.info(f"Executing phase: {phase.value}")
+        
+        # 检查游戏是否被暂停或停止
+        if self.state != GameState.RUNNING:
+            # 返回一个空事件列表，不执行阶段
+            pause_event = GameEvent(
+                id=f"phase_paused_{self.current_round}_{phase.value}_{datetime.now().timestamp()}",
+                type="phase_paused",
+                timestamp=datetime.now(),
+                company_id=None,
+                description=f"由于游戏已暂停，跳过阶段 {phase.value}",
+                data={"phase": phase.value, "round": self.current_round}
+            )
+            return [pause_event]
+        
+        if phase == RoundPhase.FUNDING:
+            phase_events = await self._distribute_funding()
+        elif phase == RoundPhase.AI_DECISIONS:
+            phase_events = await self._process_ai_decisions_staged()
+        elif phase == RoundPhase.MARKET_EVENTS:
+            phase_events = await self._generate_market_events()
+        elif phase == RoundPhase.STATUS_UPDATE:
+            phase_events = await self._update_company_status()
+        
+        return phase_events
+    
+    async def _process_ai_decisions_staged(self) -> List[GameEvent]:
+        """分阶段处理AI决策，避免并发请求"""
+        events = []
+        
+        # 为每个公司生成决策请求
+        for company in self.companies.values():
+            if not company.is_active:
+                continue
+                
+            company_employees = [emp for emp in self.employees.values() if emp.company_id == company.id]
+            
+            if company.company_type == CompanyType.CENTRALIZED:
+                # 集权公司：分层决策
+                events.extend(await self._process_hierarchical_decisions_staged(company, company_employees))
+            else:
+                # 去中心化公司：集体决策
+                events.extend(await self._process_collaborative_decisions_staged(company, company_employees))
+        
+        return events
+    
+    async def _process_hierarchical_decisions_staged(self, company: Company, employees: List[Employee]) -> List[GameEvent]:
+        """分阶段处理集权公司的层级决策"""
+        events = []
+        
+        # 按级别分组
+        ceo_employees = [emp for emp in employees if emp.role == Role.CEO]
+        manager_employees = [emp for emp in employees if emp.role == Role.MANAGER]
+        regular_employees = [emp for emp in employees if emp.role == Role.EMPLOYEE]
+        
+        # 1. CEO决策
+        if ceo_employees:
+            ceo = ceo_employees[0]
+            decision = await self._make_ai_decision_with_delay(ceo, company, "executive")
+            events.append(self._create_decision_event(decision, company, "ceo_decision"))
+        
+        # 2. 经理决策
+        for manager in manager_employees:
+            decision = await self._make_ai_decision_with_delay(manager, company, "managerial")
+            events.append(self._create_decision_event(decision, company, "manager_decision"))
+        
+        # 3. 员工决策
+        for employee in regular_employees[:3]:  # 限制员工决策数量
+            decision = await self._make_ai_decision_with_delay(employee, company, "operational")
+            events.append(self._create_decision_event(decision, company, "employee_decision"))
+        
+        # 创建层级决策完成事件
+        hierarchical_event = GameEvent(
+            id=f"hierarchical_decision_{company.id}_{self.current_round}",
+            type="hierarchical_decision",
+            timestamp=datetime.now(),
+            company_id=company.id,
+            description=f"{company.name} 完成层级决策",
+            data={
+                "company_type": "centralized",
+                "ceo_decisions": len(ceo_employees),
+                "manager_decisions": len(manager_employees),
+                "employee_decisions": min(len(regular_employees), 3),
+                "total_decisions": len(ceo_employees) + len(manager_employees) + min(len(regular_employees), 3)
+            }
+        )
+        events.append(hierarchical_event)
+        
+        return events
+    
+    async def _process_collaborative_decisions_staged(self, company: Company, employees: List[Employee]) -> List[GameEvent]:
+        """分阶段处理去中心化公司的协作决策"""
+        events = []
+        
+        # 随机选择5个员工参与决策
+        participating_employees = random.sample(employees, min(5, len(employees)))
+        
+        # 分阶段为每个员工生成决策
+        for employee in participating_employees:
+            decision = await self._make_ai_decision_with_delay(employee, company, "collaborative")
+            events.append(self._create_decision_event(decision, company, "collaborative_proposal"))
+        
+        # 创建协作决策完成事件
+        collaborative_event = GameEvent(
+            id=f"collaborative_decision_{company.id}_{self.current_round}",
+            type="collaborative_decision",
+            timestamp=datetime.now(),
+            company_id=company.id,
+            description=f"{company.name} 通过集体决策做出决定",
+            data={
+                "company_type": "decentralized",
+                "participating_employees": len(participating_employees),
+                "total_proposals": len(participating_employees)
+            }
+        )
+        events.append(collaborative_event)
+        
+        return events
+    
+    async def _make_ai_decision_with_delay(self, employee: Employee, company: Company, decision_type: str) -> Decision:
+        """带延迟的AI决策调用"""
+        # 检查游戏是否被暂停或停止
+        if self.state != GameState.RUNNING:
+            # 返回一个默认的决策，不调用AI
+            return Decision(
+                id=f"paused_decision_{company.id}_{employee.id}_{self.current_round}_{datetime.now().timestamp()}",
+                company_id=company.id,
+                employee_id=employee.id,
+                decision_type=DecisionType(decision_type) if decision_type in [e.value for e in DecisionType] else DecisionType.COLLABORATIVE,
+                content=f"由于游戏已暂停，{employee.name}暂停决策过程",
+                created_at=datetime.now(),
+                ai_provider=None,
+                ai_model=None,
+                cost=0.0
+            )
+            
+        # 添加延迟以避免并发
+        await asyncio.sleep(self.config["ai_request_delay"])
+        
+        # 再次检查状态（在延迟后）
+        if self.state != GameState.RUNNING:
+            return Decision(
+                id=f"paused_decision_{company.id}_{employee.id}_{self.current_round}_{datetime.now().timestamp()}",
+                company_id=company.id,
+                employee_id=employee.id,
+                decision_type=DecisionType(decision_type) if decision_type in [e.value for e in DecisionType] else DecisionType.COLLABORATIVE,
+                content=f"由于游戏已暂停，{employee.name}暂停决策过程",
+                created_at=datetime.now(),
+                ai_provider=None,
+                ai_model=None,
+                cost=0.0
+            )
+        
+        # 构建决策上下文
+        context = {
+            "company_info": {
+                "name": company.name,
+                "type": company.company_type.value,
+                "funds": company.funds,
+                "size": company.size,
+                "round": self.current_round
+            },
+            "employee_info": {
+                "name": employee.name,
+                "role": employee.role.value,
+                "level": employee.level,
+                "experience": employee.experience
+            },
+            "decision_history": [
+                {
+                    "content": d.content,
+                    "type": d.decision_type.value,
+                    "timestamp": d.created_at.isoformat()
+                }
+                for d in self.decisions[-5:]  # 最近5个决策
+            ]
+        }
+        
+        # 构建AI提示
+        prompt = self._build_decision_prompt(employee, company, decision_type, context)
+        
+        # 调用AI
+        ai_response = await self.ai_client.call_ai(
+            prompt=prompt,
+            provider=AIProvider.MOONSHOT,
+            temperature=0.7,
+            max_tokens=200,
+            context=context
+        )
+        
+        # 创建决策记录
+        decision = Decision(
+            id=f"decision_{company.id}_{employee.id}_{self.current_round}{datetime.now().timestamp()}",
+            company_id=company.id,
+            employee_id=employee.id,
+            decision_type=DecisionType(decision_type) if decision_type in [e.value for e in DecisionType] else DecisionType.COLLABORATIVE,
+            content=ai_response.content,
+            created_at=datetime.now(),
+            ai_provider=ai_response.provider.value,
+            ai_model=ai_response.model,
+            cost=ai_response.cost
+        )
+        
+        self.decisions.append(decision)
+        return decision
+    
+    def _build_decision_prompt(self, employee: Employee, company: Company, decision_type: str, context: Dict) -> str:
+        """构建AI决策提示 - 角色扮演模式"""
+        
+        # 获取员工的AI性格和决策风格
+        ai_personality = getattr(employee, 'ai_personality', '理性型、具有专业精神、工作认真负责')
+        decision_style = getattr(employee, 'decision_style', '数据驱动')
+        
+        # 根据角色构建不同的提示
+        role_context = self._get_role_context(employee.role.value, company.company_type.value)
+        
+        # 构建决策历史摘要
+        decision_history = context.get('decision_history', [])
+        history_summary = self._build_history_summary(decision_history)
+        
+        # 构建角色扮演提示
+        base_prompt = f"""
+# 角色设定
+你是{company.name}的{employee.role.value} {employee.name}。
+
+## 个人特质
+- 性格特点：{ai_personality}
+- 决策风格：{decision_style}
+- 职业等级：{employee.level}级
+- 工作经验：{employee.experience}点
+
+## 公司环境
+- 公司名称：{company.name}
+- 组织类型：{company.company_type.value}（{self._get_company_type_description(company.company_type.value)}）
+- 当前资金：${company.funds:,}
+- 团队规模：{company.size}人
+- 游戏轮次：第{self.current_round}轮
+
+## 角色职责
+{role_context}
+
+## 决策类型
+当前需要做出的决策类型：{decision_type}
+
+## 近期决策历史
+{history_summary}
+
+## 任务要求
+请以{employee.name}的身份，结合你的{ai_personality}和{decision_style}的特点，在{company.company_type.value}公司环境下，做出一个符合{employee.role.value}角色的商业决策。
+
+决策要求：
+1. 体现你的个人性格特点和决策风格
+2. 符合{employee.role.value}的职责范围
+3. 考虑{company.company_type.value}公司的组织特点
+4. 具有实际可操作性
+5. 简洁明了（30-50字）
+
+请直接给出决策内容，以第一人称表述：
+        """
+        
+        return base_prompt
+    
+    def _get_role_context(self, role: str, company_type: str) -> str:
+        """获取角色上下文描述"""
+        role_contexts = {
+            'ceo': {
+                'centralized': '作为集权公司的CEO，你拥有最终决策权，需要制定公司战略方向，管理高层团队，对公司整体绩效负责。',
+                'decentralized': '作为去中心化公司的协调者，你需要促进团队协作，确保信息流通，支持员工自主决策。'
+            },
+            'manager': {
+                'centralized': '作为中层管理者，你需要执行CEO的战略决策，管理团队，协调部门间合作，向上汇报工作进展。',
+                'decentralized': '作为去中心化组织的引导者，你需要支持团队成员，促进跨部门协作，确保项目顺利推进。'
+            },
+            'employee': {
+                'centralized': '作为一线员工，你需要执行上级分配的任务，在职责范围内提出建议，努力完成个人目标。',
+                'decentralized': '作为自主工作者，你有更大的决策自由度，需要主动承担责任，积极参与团队决策。'
+            }
+        }
+        return role_contexts.get(role, {}).get(company_type, '请根据你的职位做出合适的决策。')
+    
+    def _get_company_type_description(self, company_type: str) -> str:
+        """获取公司类型描述"""
+        descriptions = {
+            'centralized': '层级分明的传统组织结构，决策权集中在高层',
+            'decentralized': '扁平化的现代组织结构，决策权分散到各层级'
+        }
+        return descriptions.get(company_type, '组织结构')
+    
+    def _build_history_summary(self, decision_history: List[Dict]) -> str:
+        """构建决策历史摘要"""
+        if not decision_history:
+            return "暂无近期决策历史"
+        
+        summary = "近期决策回顾：\n"
+        for i, decision in enumerate(decision_history[-3:], 1):
+            summary += f"{i}. {decision.get('content', '无内容')}\n"
+        
+        return summary
+    
+    def _create_decision_event(self, decision: Decision, company: Company, event_type: str) -> GameEvent:
+        """创建决策事件"""
+        return GameEvent(
+            id=f"{event_type}_{decision.id}",
+            type=event_type,
+            timestamp=decision.created_at,
+            company_id=company.id,
+            description=f"{company.name} 做出决策: {decision.content[:30]}...",
+            data={
+                "decision_id": decision.id,
+                "employee_id": decision.employee_id,
+                "decision_type": decision.decision_type.value,
+                "content": decision.content,
+                "ai_provider": decision.ai_provider,
+                "ai_model": decision.ai_model,
+                "cost": decision.cost
+            }
+        )
+    
+    async def _update_cache_and_streams(self, events: List[GameEvent]):
+        """更新缓存和实时流"""
         try:
             # 缓存游戏状态
             await cache_manager.cache_game_stats(self.get_game_stats())
             
             # 缓存事件并发布到流
-            for event in step_events:
-                event_dict = event.__dict__
+            for event in events:
+                event_dict = event.__dict__.copy()
+                # 处理datetime对象
+                if isinstance(event_dict.get('timestamp'), datetime):
+                    event_dict['timestamp'] = event_dict['timestamp'].isoformat()
                 await cache_manager.add_game_event(event_dict)
                 # 发布到实时流
                 await stream_manager.add_game_event(event_dict)
             
-            # 批量缓存公司数据并发布更新通知
+            # 缓存决策数据
+            decisions_data = []
+            for decision in self.decisions[-10:]:  # 最近10个决策
+                decision_dict = {
+                    'id': decision.id,
+                    'company_id': decision.company_id,
+                    'employee_id': decision.employee_id,
+                    'decision_type': decision.decision_type.value,
+                    'content': decision.content,
+                    'created_at': decision.created_at.isoformat(),
+                    'ai_provider': decision.ai_provider,
+                    'ai_model': decision.ai_model,
+                    'cost': decision.cost
+                }
+                decisions_data.append(decision_dict)
+            
+            await cache_manager.cache_decisions(decisions_data)
+            
+            # 批量缓存公司数据
             companies = list(self.companies.values())
             await cache_manager.bulk_cache_companies(companies)
             
-            # 发布公司状态更新到流
-            for company in companies:
-                await stream_manager.add_company_update(
-                    company.id, 
-                    'status_update',
-                    {
-                        'step': self.current_step,
-                        'funds': company.funds,
-                        'size': company.size,
-                        'is_active': company.is_active,
-                        'productivity': company.productivity,
-                        'innovation': company.innovation,
-                        'efficiency': company.efficiency
-                    }
-                )
+            # 缓存AI统计信息
+            await cache_manager.cache_ai_stats(self.ai_client.call_stats)
             
-            # 缓存游戏状态快照
-            game_state = {
-                'step': self.current_step,
-                'companies_count': len(self.companies),
-                'employees_count': len(self.employees),
-                'total_funds': sum(company.funds for company in companies),
-                'active_companies': len([c for c in companies if c.is_active]),
-                'timestamp': datetime.now().isoformat()
-            }
-            await cache_manager.cache_game_state_snapshot(self.current_step, game_state)
+            logger.info(f"Cached {len(events)} events, {len(decisions_data)} decisions, {len(companies)} companies")
             
-            # 缓存步骤结果
-            step_stats = {
-                'events_count': len(step_events),
-                'companies_processed': len(companies),
-                'decisions_made': len([e for e in step_events if e.type in ['hierarchical_decision', 'collective_decision']])
-            }
-            events_data = [event.__dict__ for event in step_events]
-            await cache_manager.cache_step_results(self.current_step, events_data, step_stats)
-                
         except Exception as e:
-            logger.error(f"Error updating cache during game step: {e}")
+            logger.error(f"Error updating cache: {e}")
+    
+    async def reset_game(self):
+        """重置游戏"""
+        logger.info("Resetting game...")
         
-        return step_events
+        # 停止自动轮次
+        if self.auto_round_task:
+            self.auto_round_task.cancel()
+            self.auto_round_task = None
+        
+        # 清空所有数据
+        self.companies.clear()
+        self.employees.clear()
+        self.decisions.clear()
+        self.events.clear()
+        
+        # 重置游戏状态
+        self.current_round = 0
+        self.current_phase = RoundPhase.FUNDING
+        self.last_round_time = datetime.now()
+        self.ai_client.call_stats = {
+            "total_calls": 0,
+            "total_cost": 0.0,
+            "provider_stats": {}
+        }
+        
+        # 清空缓存
+        await cache_manager.clear_game_cache()
+        
+        # 重新初始化
+        await self.initialize()
+        
+        # 发布重置事件
+        reset_event = GameEvent(
+            id=f"game_reset_{datetime.now().timestamp()}",
+            type="game_reset",
+            timestamp=datetime.now(),
+            company_id=None,
+            description="游戏已重置",
+            data={"timestamp": datetime.now().isoformat()}
+        )
+        
+        self.events.append(reset_event)
+        await self._update_cache_and_streams([reset_event])
+        
+        logger.info("Game reset completed")
     
     async def _create_initial_companies(self):
         """创建初始公司"""
@@ -227,11 +762,14 @@ class GameEngine:
             ceo = Employee(
                 id=f"{company.id}_ceo",
                 company_id=company.id,
-                name=f"{company.name}_CEO",
+                name=self._generate_unique_name(company.name, Role.CEO),
                 role=Role.CEO,
                 level=3,
                 experience=100
             )
+            # 设置AI性格和决策风格
+            ceo.ai_personality = self._generate_ai_personality()
+            ceo.decision_style = self._generate_decision_style()
             self.employees[ceo.id] = ceo
             
             # 3个经理
@@ -239,24 +777,30 @@ class GameEngine:
                 manager = Employee(
                     id=f"{company.id}_manager_{i}",
                     company_id=company.id,
-                    name=f"{company.name}_经理_{i+1}",
+                    name=self._generate_unique_name(company.name, Role.MANAGER),
                     role=Role.MANAGER,
                     level=2,
                     experience=60
                 )
+                # 设置AI性格和决策风格
+                manager.ai_personality = self._generate_ai_personality()
+                manager.decision_style = self._generate_decision_style()
                 self.employees[manager.id] = manager
             
             # 其余为员工
-            remaining_employees = company.size - 4
+            remaining_employees = max(0, company.size - 4)  # 确保不为负数
             for i in range(remaining_employees):
                 employee = Employee(
                     id=f"{company.id}_employee_{i}",
                     company_id=company.id,
-                    name=f"{company.name}_员工_{i+1}",
+                    name=self._generate_unique_name(company.name, Role.EMPLOYEE),
                     role=Role.EMPLOYEE,
                     level=1,
                     experience=30
                 )
+                # 设置AI性格和决策风格
+                employee.ai_personality = self._generate_ai_personality()
+                employee.decision_style = self._generate_decision_style()
                 self.employees[employee.id] = employee
         
         else:  # DECENTRALIZED
@@ -265,11 +809,14 @@ class GameEngine:
                 employee = Employee(
                     id=f"{company.id}_employee_{i}",
                     company_id=company.id,
-                    name=f"{company.name}_成员_{i+1}",
+                    name=self._generate_unique_name(company.name, Role.EMPLOYEE),
                     role=Role.EMPLOYEE,
                     level=2,
                     experience=50
                 )
+                # 设置AI性格和决策风格
+                employee.ai_personality = self._generate_ai_personality()
+                employee.decision_style = self._generate_decision_style()
                 self.employees[employee.id] = employee
     
     async def _distribute_funding(self) -> List[GameEvent]:
@@ -277,6 +824,9 @@ class GameEngine:
         events = []
         
         for company in self.companies.values():
+            if not company.is_active:
+                continue
+                
             # 根据公司规模计算资金增长
             funding_amount = self.config["base_funding_rate"] * (company.size / 10)
             
@@ -287,7 +837,7 @@ class GameEngine:
             company.funds += funding_amount
             
             event = GameEvent(
-                id=f"funding_{company.id}_{self.current_step}",
+                id=f"funding_{company.id}_{self.current_round}",
                 type="funding_received",
                 timestamp=datetime.now(),
                 company_id=company.id,
@@ -301,186 +851,31 @@ class GameEngine:
         
         return events
     
-    async def _process_ai_decisions(self) -> List[GameEvent]:
-        """处理AI决策"""
-        events = []
-        
-        for company in self.companies.values():
-            company_employees = [emp for emp in self.employees.values() 
-                               if emp.company_id == company.id]
-            
-            if company.company_type == CompanyType.CENTRALIZED:
-                # 集权公司：分层决策
-                decision_events = await self._process_centralized_decisions(company, company_employees)
-            else:
-                # 去中心化公司：集体决策
-                decision_events = await self._process_decentralized_decisions(company, company_employees)
-            
-            events.extend(decision_events)
-        
-        return events
-    
-    async def _process_centralized_decisions(self, company: Company, employees: List[Employee]) -> List[GameEvent]:
-        """处理集权公司决策"""
-        events = []
-        
-        # 找到CEO
-        ceo = next((emp for emp in employees if emp.role == Role.CEO), None)
-        if not ceo:
-            return events
-        
-        # CEO做出战略决策
-        strategic_decision = await self._make_ai_decision(
-            company, ceo, DecisionType.STRATEGIC,
-            "作为CEO，请为公司制定下一步战略决策。考虑当前市场环境和公司资源。"
-        )
-        
-        if strategic_decision:
-            events.append(GameEvent(
-                id=f"decision_{company.id}_{self.current_step}_strategic",
-                type="decision_made",
-                timestamp=datetime.now(),
-                company_id=company.id,
-                description=f"{company.name} CEO 做出战略决策",
-                data=asdict(strategic_decision)
-            ))
-        
-        # 经理们做出运营决策
-        managers = [emp for emp in employees if emp.role == Role.MANAGER]
-        for manager in managers:
-            operational_decision = await self._make_ai_decision(
-                company, manager, DecisionType.OPERATIONAL,
-                f"作为经理，根据CEO的战略决策，制定具体的运营计划。CEO决策：{strategic_decision.content if strategic_decision else '暂无'}"
-            )
-            
-            if operational_decision:
-                events.append(GameEvent(
-                    id=f"decision_{company.id}_{manager.id}_{self.current_step}",
-                    type="decision_made",
-                    timestamp=datetime.now(),
-                    company_id=company.id,
-                    description=f"{company.name} 经理 {manager.name} 做出运营决策",
-                    data=asdict(operational_decision)
-                ))
-        
-        return events
-    
-    async def _process_decentralized_decisions(self, company: Company, employees: List[Employee]) -> List[GameEvent]:
-        """处理去中心化公司决策"""
-        events = []
-        
-        # 所有员工参与决策
-        decision_proposals = []
-        
-        for employee in employees[:5]:  # 限制参与决策的员工数量，避免过多API调用
-            proposal = await self._make_ai_decision(
-                company, employee, DecisionType.COLLABORATIVE,
-                "作为去中心化公司的成员，请提出你对公司下一步发展的建议和决策。"
-            )
-            
-            if proposal:
-                decision_proposals.append(proposal)
-        
-        # 模拟投票过程（少数服从多数）
-        if decision_proposals:
-            # 简化处理：随机选择一个提案作为最终决策
-            final_decision = random.choice(decision_proposals)
-            
-            events.append(GameEvent(
-                id=f"decision_{company.id}_{self.current_step}_collaborative",
-                type="collaborative_decision",
-                timestamp=datetime.now(),
-                company_id=company.id,
-                description=f"{company.name} 通过集体决策做出决定",
-                data={
-                    "final_decision": asdict(final_decision),
-                    "total_proposals": len(decision_proposals)
-                }
-            ))
-        
-        return events
-    
-    async def _make_ai_decision(
-        self, 
-        company: Company, 
-        employee: Employee, 
-        decision_type: DecisionType, 
-        prompt: str
-    ) -> Optional[Decision]:
-        """让AI做决策"""
-        try:
-            # 构建上下文信息
-            context = {
-                "company_info": {
-                    "name": company.name,
-                    "type": company.company_type.value,
-                    "funds": company.funds,
-                    "size": company.size
-                },
-                "employee_info": {
-                    "name": employee.name,
-                    "role": employee.role.value,
-                    "level": employee.level,
-                    "experience": employee.experience
-                }
-            }
-            
-            # 调用AI API
-            ai_response = await self.ai_client.call_ai(
-                prompt=prompt,
-                provider=AIProvider.OPENAI,  # 可以配置化
-                context=context,
-                temperature=0.7,
-                max_tokens=500
-            )
-            
-            # 创建决策记录
-            decision = Decision(
-                id=f"decision_{company.id}_{employee.id}_{datetime.now().timestamp()}",
-                company_id=company.id,
-                employee_id=employee.id,
-                decision_type=decision_type,
-                content=ai_response.content,
-                created_at=datetime.now(),
-                ai_provider=ai_response.provider.value,
-                ai_model=ai_response.model,
-                cost=ai_response.cost
-            )
-            
-            self.decisions.append(decision)
-            
-            # 发布决策事件到流
-            await stream_manager.add_decision_event(decision.to_dict())
-            
-            return decision
-            
-        except Exception as e:
-            logger.error(f"Error making AI decision: {e}")
-            return None
-    
     async def _generate_market_events(self) -> List[GameEvent]:
         """生成市场事件"""
         events = []
         
         # 随机生成市场事件
+        market_events = [
+            "市场需求增长",
+            "新技术突破",
+            "竞争对手进入",
+            "政策变化",
+            "经济波动"
+        ]
+        
         if random.random() < 0.3:  # 30%概率生成市场事件
-            market_events = [
-                "新技术突破影响市场格局",
-                "政策变化带来新的商业机会",
-                "竞争对手推出新产品",
-                "供应链出现波动",
-                "客户需求发生变化"
-            ]
-            
-            event_description = random.choice(market_events)
-            
+            event_type = random.choice(market_events)
             event = GameEvent(
-                id=f"market_{self.current_step}",
+                id=f"market_{self.current_round}_{datetime.now().timestamp()}",
                 type="market_event",
                 timestamp=datetime.now(),
                 company_id=None,
-                description=event_description,
-                data={"impact": random.uniform(-0.2, 0.2)}
+                description=f"市场事件: {event_type}",
+                data={
+                    "event_type": event_type,
+                    "round": self.current_round
+                }
             )
             events.append(event)
         
@@ -491,69 +886,95 @@ class GameEngine:
         events = []
         
         for company in self.companies.values():
-            # 更新公司状态逻辑
-            old_funds = company.funds
+            if not company.is_active:
+                continue
+                
+            # 计算运营成本
+            operating_cost = company.size * 100  # 每人100基础成本
+            company.funds -= operating_cost
             
-            # 简单的资金消耗模拟
-            operating_cost = company.size * 100  # 每个员工100资金维护成本
-            company.funds = max(0, company.funds - operating_cost)
+            # 确保资金不为负
+            if company.funds < 0:
+                company.funds = 0
             
-            if company.funds != old_funds:
-                event = GameEvent(
-                    id=f"status_update_{company.id}_{self.current_step}",
-                    type="company_status_update",
-                    timestamp=datetime.now(),
-                    company_id=company.id,
-                    description=f"{company.name} 支付运营成本 {operating_cost}",
-                    data={
-                        "operating_cost": operating_cost,
-                        "remaining_funds": company.funds
-                    }
-                )
-                events.append(event)
+            event = GameEvent(
+                id=f"status_update_{company.id}_{self.current_round}",
+                type="company_status_update",
+                timestamp=datetime.now(),
+                company_id=company.id,
+                description=f"{company.name} 支付运营成本 {operating_cost}",
+                data={
+                    "operating_cost": operating_cost,
+                    "remaining_funds": company.funds
+                }
+            )
+            events.append(event)
         
         return events
     
-    # 公共接口方法
+    def get_game_stats(self) -> Dict[str, Any]:
+        """获取游戏统计信息"""
+        return {
+            "status": self.state.value,
+            "mode": self.mode.value,
+            "current_round": self.current_round,
+            "current_phase": self.current_phase.value,
+            "last_round_time": self.last_round_time.isoformat(),
+            "companies_count": len(self.companies),
+            "employees_count": len(self.employees),
+            "decisions_count": len(self.decisions),
+            "events_count": len(self.events),
+            "ai_stats": self.ai_client.call_stats,
+            "config": self.config
+        }
+    
     def get_companies(self) -> List[Company]:
-        """获取所有公司"""
+        """获取公司列表"""
         return list(self.companies.values())
     
     def get_company(self, company_id: str) -> Optional[Company]:
         """获取特定公司"""
         return self.companies.get(company_id)
     
-    def get_employees(self, company_id: str = None) -> List[Employee]:
+    def get_employees(self, company_id: Optional[str] = None) -> List[Employee]:
         """获取员工列表"""
         if company_id:
             return [emp for emp in self.employees.values() if emp.company_id == company_id]
         return list(self.employees.values())
     
-    def get_recent_decisions(self, company_id: str = None, limit: int = 50) -> List[Decision]:
-        """获取最近的决策"""
-        decisions = self.decisions
-        if company_id:
-            decisions = [d for d in decisions if d.company_id == company_id]
-        
-        return sorted(decisions, key=lambda x: x.created_at, reverse=True)[:limit]
+    def get_decisions(self) -> List[Decision]:
+        """获取决策列表"""
+        return self.decisions
     
-    def get_recent_events(self, company_id: str = None, limit: int = 100) -> List[GameEvent]:
+    def get_events(self) -> List[GameEvent]:
+        """获取事件列表"""
+        return self.events
+    
+    def get_recent_events(self, count: int = 10) -> List[GameEvent]:
         """获取最近的事件"""
-        events = self.events
-        if company_id:
-            events = [e for e in events if e.company_id == company_id]
-        
-        return sorted(events, key=lambda x: x.timestamp, reverse=True)[:limit]
+        return self.events[-count:] if len(self.events) >= count else self.events
     
-    def get_game_stats(self) -> Dict[str, Any]:
-        """获取游戏统计信息"""
-        return {
-            "current_step": self.current_step,
-            "state": self.state.value,
-            "companies_count": len(self.companies),
-            "employees_count": len(self.employees),
-            "decisions_count": len(self.decisions),
-            "events_count": len(self.events),
-            "ai_stats": self.ai_client.get_stats(),
-            "last_step_time": self.last_step_time.isoformat()
-        }
+    def get_recent_decisions(self, count: int = 10) -> List[Decision]:
+        """获取最近的决策"""
+        return self.decisions[-count:] if len(self.decisions) >= count else self.decisions
+    
+    # 状态控制方法
+    def pause(self):
+        """暂停游戏"""
+        self.state = GameState.PAUSED
+        if self.auto_round_task:
+            self.auto_round_task.cancel()
+            self.auto_round_task = None
+    
+    def resume(self):
+        """恢复游戏"""
+        self.state = GameState.RUNNING
+        if self.mode == GameMode.AUTO:
+            asyncio.create_task(self.start_auto_rounds())
+    
+    def stop(self):
+        """停止游戏"""
+        self.state = GameState.STOPPED
+        if self.auto_round_task:
+            self.auto_round_task.cancel()
+            self.auto_round_task = None

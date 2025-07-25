@@ -35,6 +35,7 @@ interface NetworkGraphProps {
   maxNodes?: number;  // 最大节点数量
   enableClustering?: boolean;  // 是否启用聚类
   performanceMode?: boolean;  // 高性能模式
+  darkMode?: boolean;  // 暗色主题
 }
 
 const NetworkGraph: React.FC<NetworkGraphProps> = ({
@@ -46,7 +47,8 @@ const NetworkGraph: React.FC<NetworkGraphProps> = ({
   onNodeHover,
   maxNodes = 100,
   enableClustering = false,
-  performanceMode = false
+  performanceMode = false,
+  darkMode = false
 }) => {
   const svgRef = useRef<SVGSVGElement>(null);
   const [selectedNode, setSelectedNode] = useState<Node | null>(null);
@@ -207,7 +209,7 @@ const NetworkGraph: React.FC<NetworkGraphProps> = ({
         .attr('orient', 'auto')
         .append('path')
         .attr('d', 'M0,-5L10,0L0,5')
-        .attr('fill', arrow.color);
+        .attr('fill', darkMode ? (arrow.color === '#6b7280' ? '#9ca3af' : arrow.color) : arrow.color);
     });
 
     // 绘制连接线 - 使用优化后的数据
@@ -218,13 +220,15 @@ const NetworkGraph: React.FC<NetworkGraphProps> = ({
       .enter().append('line')
       .attr('class', 'link')
       .attr('stroke', d => {
-        switch (d.type) {
-          case 'hierarchy': return '#3b82f6';
-          case 'decision': return '#ef4444';
-          case 'communication': return '#10b981';
-          case 'feedback': return '#f59e0b';
-          default: return '#6b7280';
-        }
+        const baseColor = {
+          hierarchy: '#3b82f6',
+          decision: '#ef4444',
+          communication: '#10b981',
+          feedback: '#f59e0b',
+          default: '#6b7280'
+        };
+        const color = baseColor[d.type] || baseColor.default;
+        return darkMode && color === '#6b7280' ? '#9ca3af' : color;
       })
       .attr('stroke-width', d => Math.max(1, d.strength * 3))
       .attr('stroke-opacity', d => d.status === 'active' ? 0.8 : 0.3)
@@ -273,8 +277,8 @@ const NetworkGraph: React.FC<NetworkGraphProps> = ({
           switch (d.role) {
             case 'ceo': return '#ef4444';
             case 'manager': return '#f59e0b';
-            case 'employee': return '#6b7280';
-            default: return '#6b7280';
+            case 'employee': return darkMode ? '#9ca3af' : '#6b7280';
+            default: return darkMode ? '#9ca3af' : '#6b7280';
           }
         } else {
           return '#8b5cf6';
@@ -335,7 +339,7 @@ const NetworkGraph: React.FC<NetworkGraphProps> = ({
       })
       .attr('font-size', d => d.type === 'company' ? '12px' : '10px')
       .attr('font-weight', d => d.type === 'company' || d.role === 'ceo' ? 'bold' : 'normal')
-      .attr('fill', '#374151')
+      .attr('fill', darkMode ? '#e5e7eb' : '#374151')
       .text(d => d.name);
 
     // 添加角色标签
@@ -413,7 +417,7 @@ const NetworkGraph: React.FC<NetworkGraphProps> = ({
       setIsRendering(false);
     };
 
-  }, [visibleNodes, visibleLinks, width, height, onNodeClick, onNodeHover, performanceMode]);
+  }, [visibleNodes, visibleLinks, width, height, onNodeClick, onNodeHover, performanceMode, darkMode]);
 
   return (
     <div className="relative w-full h-full">
@@ -421,16 +425,16 @@ const NetworkGraph: React.FC<NetworkGraphProps> = ({
         ref={svgRef}
         width={width}
         height={height}
-        className="border border-gray-200 rounded-lg bg-gradient-to-br from-gray-50 to-gray-100"
+        className={`border rounded-lg ${darkMode ? 'border-gray-600 bg-gradient-to-br from-gray-800 to-gray-900' : 'border-gray-200 bg-gradient-to-br from-gray-50 to-gray-100'}`}
       >
       </svg>
       
       {/* 加载指示器 */}
       {isRendering && (
-        <div className="absolute inset-0 bg-white bg-opacity-50 flex items-center justify-center">
-          <div className="bg-white p-4 rounded-lg shadow-lg flex items-center space-x-2">
+        <div className={`absolute inset-0 ${darkMode ? 'bg-gray-900' : 'bg-white'} bg-opacity-50 flex items-center justify-center`}>
+          <div className={`${darkMode ? 'bg-gray-800' : 'bg-white'} p-4 rounded-lg shadow-lg flex items-center space-x-2`}>
             <div className="w-4 h-4 border-2 border-blue-500 border-t-transparent rounded-full animate-spin"></div>
-            <span className="text-sm text-gray-600">渲染网络图...</span>
+            <span className={`text-sm ${darkMode ? 'text-gray-300' : 'text-gray-600'}`}>渲染网络图...</span>
           </div>
         </div>
       )}
@@ -445,10 +449,10 @@ const NetworkGraph: React.FC<NetworkGraphProps> = ({
       )}
       
       {/* 图例 */}
-      <div className="absolute top-4 left-4 bg-white p-4 rounded-lg shadow-lg border z-10">
-        <h3 className="font-semibold text-sm mb-3">图例</h3>
+      <div className={`absolute top-4 left-4 ${darkMode ? 'bg-gray-800 border-gray-600' : 'bg-white border-gray-200'} p-4 rounded-lg shadow-lg border z-10`}>
+        <h3 className={`font-semibold text-sm mb-3 ${darkMode ? 'text-white' : 'text-gray-900'}`}>图例</h3>
         
-        <div className="space-y-2 text-xs">
+        <div className={`space-y-2 text-xs ${darkMode ? 'text-gray-300' : 'text-gray-700'}`}>
           <div className="flex items-center space-x-2">
             <div className="w-4 h-4 rounded-full bg-blue-500"></div>
             <span>集权公司</span>

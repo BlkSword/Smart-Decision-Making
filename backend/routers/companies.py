@@ -2,12 +2,21 @@ from fastapi import APIRouter, HTTPException, Depends
 from typing import List, Optional
 from datetime import datetime
 import uuid
+from pydantic import BaseModel
 
 from models.company import Company, CompanyType
 from core.game_engine import GameEngine
 from core.cache_manager import cache_manager
 
 router = APIRouter()
+
+# 请求模型
+class CreateCompanyRequest(BaseModel):
+    name: str
+    type: str  # 前端传递的字段名是 'type'
+    initial_funding: int = 50000
+    size: int = 10
+    description: Optional[str] = None
 
 # 获取游戏引擎实例
 def get_game_engine():
@@ -45,23 +54,30 @@ async def get_company(company_id: str):
     return company.to_dict()
 
 @router.post("/", response_model=dict)
-async def create_company(
-    name: str,
-    company_type: str,
-    initial_funds: int = 50000,
-    initial_size: int = 10,
-    description: Optional[str] = None
-):
+async def create_company(request: CreateCompanyRequest):
     """创建新公司"""
     engine = get_game_engine()
     
     # 验证公司类型
     try:
-        comp_type = CompanyType(company_type.lower())
+        comp_type = CompanyType(request.type.lower())
     except ValueError:
         raise HTTPException(
             status_code=400, 
             detail=f"Invalid company type. Must be one of: {[t.value for t in CompanyType]}"
+        )
+    
+    # 验证公司规模
+    if comp_type == CompanyType.CENTRALIZED and request.size < 4:
+        raise HTTPException(
+            status_code=400, 
+            detail="Centralized companies must have at least 4 employees (1 CEO + 3 Managers)"
+        )
+    
+    if request.size < 1:
+        raise HTTPException(
+            status_code=400, 
+            detail="Company size must be at least 1"
         )
     
     # 检查公司数量限制
@@ -72,12 +88,12 @@ async def create_company(
     company_id = f"company_{uuid.uuid4().hex[:8]}"
     company = Company(
         id=company_id,
-        name=name,
+        name=request.name,
         company_type=comp_type,
-        funds=initial_funds,
-        size=initial_size,
+        funds=request.initial_funding,
+        size=request.size,
         created_at=datetime.now(),
-        description=description
+        description=request.description
     )
     
     # 添加到游戏引擎

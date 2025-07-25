@@ -146,6 +146,71 @@ class CacheManager:
             logger.error(f"Error caching employee {employee.id}: {e}")
             return False
     
+    async def cache_decisions(self, decisions: List[Dict[str, Any]]) -> bool:
+        """缓存决策数据"""
+        try:
+            key = "ai_war:decisions:recent"
+            return await redis_client.set(key, decisions, self.default_ttl['decision'])
+        except Exception as e:
+            logger.error(f"Error caching decisions: {e}")
+            return False
+    
+    async def get_cached_decisions(self) -> Optional[List[Dict[str, Any]]]:
+        """获取缓存的决策数据"""
+        try:
+            key = "ai_war:decisions:recent"
+            return await redis_client.get(key)
+        except Exception as e:
+            logger.error(f"Error getting cached decisions: {e}")
+            return None
+    
+    async def cache_ai_stats(self, ai_stats: Dict[str, Any]) -> bool:
+        """缓存AI统计数据"""
+        try:
+            key = "ai_war:ai:stats"
+            return await redis_client.set(key, ai_stats, self.default_ttl['statistics'])
+        except Exception as e:
+            logger.error(f"Error caching AI stats: {e}")
+            return False
+    
+    async def get_cached_ai_stats(self) -> Optional[Dict[str, Any]]:
+        """获取缓存的AI统计数据"""
+        try:
+            key = "ai_war:ai:stats"
+            return await redis_client.get(key)
+        except Exception as e:
+            logger.error(f"Error getting cached AI stats: {e}")
+            return None
+    
+    async def clear_game_cache(self) -> bool:
+        """清空游戏缓存"""
+        try:
+            # 删除所有游戏相关的缓存键
+            patterns = [
+                "ai_war:company:*",
+                "ai_war:employee:*",
+                "ai_war:decision:*",
+                "ai_war:game:*",
+                "ai_war:events:*",
+                "ai_war:statistics:*",
+                "ai_war:ai:*",
+                "ai_war:decisions:*",
+                "ai_war:companies:*"
+            ]
+            
+            deleted_count = 0
+            for pattern in patterns:
+                keys = await redis_client.keys(pattern)
+                if keys:
+                    deleted = await redis_client.delete(*keys)
+                    deleted_count += deleted
+            
+            logger.info(f"Cleared {deleted_count} cache keys")
+            return True
+        except Exception as e:
+            logger.error(f"Error clearing game cache: {e}")
+            return False
+    
     async def cache_company_employees(self, company_id: str, employees: List[Employee]) -> bool:
         """缓存公司员工列表"""
         try:

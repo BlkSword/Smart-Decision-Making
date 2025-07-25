@@ -21,9 +21,19 @@ interface CompanyCardProps {
   company: Company;
   isSelected?: boolean;
   onClick?: () => void;
+  onDoubleClick?: () => void;
 }
 
-export function CompanyCard({ company, isSelected = false, onClick }: CompanyCardProps) {
+export function CompanyCard({ company, isSelected = false, onClick, onDoubleClick }: CompanyCardProps) {
+  const handleClick = (e: React.MouseEvent) => {
+    e.stopPropagation(); // 防止事件冒泡
+    onClick?.();
+  };
+
+  const handleDoubleClick = (e: React.MouseEvent) => {
+    e.stopPropagation(); // 防止事件冒泡
+    onDoubleClick?.();
+  };
   const formatCurrency = (amount: number) => {
     return new Intl.NumberFormat('zh-CN', {
       style: 'currency',
@@ -48,7 +58,8 @@ export function CompanyCard({ company, isSelected = false, onClick }: CompanyCar
         isSelected && "ring-2 ring-primary ring-offset-2",
         !company.is_active && "opacity-60"
       )}
-      onClick={onClick}
+      onClick={handleClick}
+      onDoubleClick={handleDoubleClick}
     >
       <CardHeader className="pb-3">
         <div className="flex items-center justify-between">

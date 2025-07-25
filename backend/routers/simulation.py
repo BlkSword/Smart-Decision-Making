@@ -15,13 +15,15 @@ async def get_simulation_status():
     
     return {
         "status": engine.state.value,
-        "current_step": engine.current_step,
-        "last_step_time": engine.last_step_time.isoformat(),
+        "mode": engine.mode.value,
+        "current_round": engine.current_round,
+        "current_phase": engine.current_phase.value,
+        "last_round_time": engine.last_round_time.isoformat(),
         "companies_count": len(engine.companies),
         "employees_count": len(engine.employees),
         "decisions_count": len(engine.decisions),
         "events_count": len(engine.events),
-        "ai_stats": engine.ai_client.get_stats(),
+        "ai_stats": engine.ai_client.call_stats,
         "config": engine.config
     }
 
@@ -49,8 +51,7 @@ async def pause_simulation():
     if engine.state.value != "running":
         raise HTTPException(status_code=400, detail="Simulation is not running")
     
-    from core.game_engine import GameState
-    engine.state = GameState.PAUSED
+    engine.pause()
     
     return {
         "message": "Simulation paused",
@@ -65,8 +66,7 @@ async def resume_simulation():
     if engine.state.value != "paused":
         raise HTTPException(status_code=400, detail="Simulation is not paused")
     
-    from core.game_engine import GameState
-    engine.state = GameState.RUNNING
+    engine.resume()
     
     return {
         "message": "Simulation resumed",
@@ -78,28 +78,110 @@ async def stop_simulation():
     """停止模拟"""
     engine = get_game_engine()
     
-    await engine.shutdown()
+    engine.stop()
     
     return {
         "message": "Simulation stopped",
         "status": engine.state.value
     }
 
-@router.post("/step")
-async def manual_step():
-    """手动执行一步模拟"""
+@router.post("/round")
+async def manual_round():
+    """手动执行一轮模拟"""
     engine = get_game_engine()
     
     if engine.state.value != "running":
         raise HTTPException(status_code=400, detail="Simulation is not running")
     
-    events = await engine.step()
+    events = await engine.execute_round()
     
     return {
-        "message": f"Step {engine.current_step} executed",
-        "step": engine.current_step,
+        "message": f"Round {engine.current_round} executed",
+        "round": engine.current_round,
         "events_generated": len(events),
-        "events": [event.__dict__ for event in events]
+        "events": [{
+            "id": event.id,
+            "type": event.type,
+            "timestamp": event.timestamp.isoformat(),
+            "company_id": event.company_id,
+            "description": event.description,
+            "data": event.data
+        } for event in events]
+    }
+
+@router.post("/mode")
+async def set_game_mode(request: Dict[str, Any]):
+    """设置游戏模式"""
+    engine = get_game_engine()
+    
+    from core.game_engine import GameMode
+    
+    mode = request.get("mode")
+    if not mode or mode not in ["auto", "manual"]:
+        raise HTTPException(status_code=400, detail="Invalid game mode. Use 'auto' or 'manual'")
+    
+    new_mode = GameMode.AUTO if mode == "auto" else GameMode.MANUAL
+    await engine.set_mode(new_mode)
+    
+    return {
+        "message": f"Game mode set to {mode}",
+        "mode": engine.mode.value,
+        "status": engine.state.value
+    }
+
+@router.post("/reset")
+async def reset_game():
+    """重置游戏"""
+    engine = get_game_engine()
+    
+    await engine.reset_game()
+    
+    return {
+        "message": "Game reset successfully",
+        "status": engine.state.value,
+        "mode": engine.mode.value,
+        "current_round": engine.current_round,
+        "companies_count": len(engine.companies),
+        "employees_count": len(engine.employees)
+    }
+
+@router.get("/decisions")
+async def get_recent_decisions(
+    company_id: str = None,
+    limit: int = 50
+):
+    """获取最近的决策"""
+    engine = get_game_engine()
+    
+    decisions = engine.get_recent_decisions(limit)
+    
+    # 过滤公司ID
+    if company_id:
+        decisions = [d for d in decisions if d.company_id == company_id]
+    
+    # 获取公司和员工信息用于丰富决策数据
+    companies = {c.id: c for c in engine.get_companies()}
+    employees = {e.id: e for e in engine.get_employees()}
+    
+    return {
+        "decisions": [
+            {
+                "id": d.id,
+                "company_id": d.company_id,
+                "company_name": companies.get(d.company_id, {}).name if companies.get(d.company_id) else "Unknown Company",
+                "employee_id": d.employee_id,
+                "employee_name": employees.get(d.employee_id, {}).name if employees.get(d.employee_id) else "Unknown Employee",
+                "employee_role": employees.get(d.employee_id, {}).role.value if employees.get(d.employee_id) else "Unknown Role",
+                "decision_type": d.decision_type.value,
+                "content": d.content,
+                "created_at": d.created_at.isoformat(),
+                "ai_provider": d.ai_provider,
+                "ai_model": d.ai_model,
+                "cost": d.cost
+            }
+            for d in decisions
+        ],
+        "total_decisions": len(decisions)
     }
 
 @router.get("/events")
@@ -111,7 +193,11 @@ async def get_recent_events(
     """获取最近的游戏事件"""
     engine = get_game_engine()
     
-    events = engine.get_recent_events(company_id, limit)
+    events = engine.get_recent_events(limit)
+    
+    # 过滤公司ID
+    if company_id:
+        events = [e for e in events if e.company_id == company_id]
     
     # 过滤事件类型
     if event_type:
@@ -144,9 +230,9 @@ async def get_simulation_stats():
     company_stats = {}
     
     for company in companies:
-        employees = engine.get_employees(company.id)
-        decisions = engine.get_recent_decisions(company.id)
-        events = engine.get_recent_events(company.id)
+        employees = [e for e in engine.get_employees() if e.company_id == company.id]
+        decisions = [d for d in engine.get_recent_decisions(10) if d.company_id == company.id]
+        events = [e for e in engine.get_recent_events(10) if e.company_id == company.id]
         
         company_stats[company.id] = {
             "name": company.name,
@@ -182,8 +268,8 @@ async def update_simulation_config(
                 status_code=400, 
                 detail="Step interval must be between 10 and 300 seconds"
             )
-        engine.config["step_interval"] = step_interval
-        config_updated["step_interval"] = step_interval
+        engine.config["round_interval"] = step_interval
+        config_updated["round_interval"] = step_interval
     
     if base_funding_rate is not None:
         if base_funding_rate < 100 or base_funding_rate > 10000:
@@ -227,8 +313,8 @@ async def get_company_leaderboard():
     
     leaderboard = []
     for company in companies:
-        employees = engine.get_employees(company.id)
-        decisions = engine.get_recent_decisions(company.id)
+        employees = [e for e in engine.get_employees() if e.company_id == company.id]
+        decisions = [d for d in engine.get_recent_decisions(10) if d.company_id == company.id]
         
         # 计算综合评分
         funds_score = company.funds / 10000  # 资金评分
@@ -237,7 +323,8 @@ async def get_company_leaderboard():
         
         # 员工质量评分
         if employees:
-            avg_performance = sum(e.performance for e in employees) / len(employees)
+            # Use experience as performance metric
+            avg_performance = sum(e.experience for e in employees) / len(employees)
             avg_level = sum(e.level for e in employees) / len(employees)
             quality_score = (avg_performance * avg_level) * 20
         else:
@@ -260,7 +347,7 @@ async def get_company_leaderboard():
                 "funds": company.funds,
                 "employees": len(employees),
                 "decisions": len(decisions),
-                "avg_performance": round(sum(e.performance for e in employees) / len(employees), 2) if employees else 0
+                "avg_performance": round(sum(e.experience for e in employees) / len(employees), 2) if employees else 0
             }
         })
     

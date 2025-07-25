@@ -6,7 +6,9 @@ import { Building2, Users, Brain, Activity, Clock, DollarSign } from 'lucide-rea
 
 interface SimulationStats {
   status: string;
-  current_step: number;
+  mode: string;
+  current_round: number;
+  current_phase: string;
   companies_count: number;
   employees_count: number;
   decisions_count: number;
@@ -15,7 +17,7 @@ interface SimulationStats {
     total_calls: number;
     total_cost: number;
   };
-  last_step_time?: string;
+  last_round_time?: string;
 }
 
 interface SimulationStatsProps {
@@ -72,15 +74,18 @@ export function SimulationStats({ stats }: SimulationStatsProps) {
         </CardContent>
       </Card>
 
-      {/* 当前步骤 */}
+      {/* 当前轮次 */}
       <Card>
         <CardContent className="p-4">
           <div className="flex items-center space-x-2 mb-2">
             <Clock className="h-4 w-4 text-muted-foreground" />
-            <span className="text-sm font-medium">当前步骤</span>
+            <span className="text-sm font-medium">当前轮次</span>
           </div>
           <div className="text-2xl font-bold text-primary">
-            {stats.current_step}
+            {stats.current_round}
+          </div>
+          <div className="text-xs text-muted-foreground">
+            {stats.current_phase}
           </div>
         </CardContent>
       </Card>
@@ -142,16 +147,29 @@ export function SimulationStats({ stats }: SimulationStatsProps) {
         </Card>
       )}
 
+      {/* 游戏模式 */}
+      <Card>
+        <CardContent className="p-4">
+          <div className="flex items-center space-x-2 mb-2">
+            <Activity className="h-4 w-4 text-muted-foreground" />
+            <span className="text-sm font-medium">游戏模式</span>
+          </div>
+          <Badge variant="outline">
+            {stats.mode === 'auto' ? '自动模式' : '手动模式'}
+          </Badge>
+        </CardContent>
+      </Card>
+
       {/* 最后更新时间 */}
-      {stats.last_step_time && (
+      {stats.last_round_time && (
         <Card className="md:col-span-2 lg:col-span-3">
           <CardContent className="p-4">
             <div className="flex items-center space-x-2 mb-2">
               <Clock className="h-4 w-4 text-muted-foreground" />
-              <span className="text-sm font-medium">最后更新</span>
+              <span className="text-sm font-medium">最后轮次</span>
             </div>
             <div className="text-sm text-muted-foreground">
-              {formatDateTime(stats.last_step_time)}
+              {formatDateTime(stats.last_round_time)}
             </div>
           </CardContent>
         </Card>

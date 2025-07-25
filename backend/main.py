@@ -155,15 +155,16 @@ async def background_simulation_task():
     """后台模拟任务"""
     while True:
         try:
-            # 每30秒执行一次游戏步进
-            await asyncio.sleep(30)
+            # 等待配置的轮次间隔
+            await asyncio.sleep(game_engine.config.get('round_interval', 30))
             
-            # 执行游戏步进
-            events = await game_engine.step()
-            
-            # 广播事件到所有连接的客户端
-            for event in events:
-                await manager.broadcast("game_events", event)
+            # 只有在自动模式下才执行轮次
+            if game_engine.mode.value == 'auto' and game_engine.state.value == 'running':
+                events = await game_engine.execute_round()
+                
+                # 广播事件到所有连接的客户端
+                for event in events:
+                    await manager.broadcast("game_events", event)
                 
         except Exception as e:
             logger.error(f"Background simulation task error: {e}")
