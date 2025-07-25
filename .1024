@@ -1,0 +1,10 @@
+# AI Business War Simulation System Environment Configuration
+# This file configures the development environment for the Next.js frontend and FastAPI backend
+
+# Command to install or update dependencies, will execute each time a new thread created to ensure dependencies up-to-date
+dependency_command: 'npm install && cd backend && pip install -r requirements.txt'
+
+# Commands to run when "Run" button clicked - starts both frontend and backend
+run_command:
+  - 'npm run dev'
+  - 'cd backend && uvicorn main:app --reload --host 0.0.0.0 --port 8000'

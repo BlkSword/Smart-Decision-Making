@@ -1,0 +1,174 @@
+from fastapi import FastAPI, WebSocket, WebSocketDisconnect
+from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
+import asyncio
+import logging
+from datetime import datetime
+from typing import Dict, List
+import json
+import os
+from dotenv import load_dotenv
+
+# Load environment variables
+load_dotenv()
+
+from routers import companies, employees, decisions, simulation, cache, streams, cluster, monitoring, situation
+from core.websocket_manager import ConnectionManager
+from core.ai_client import AIClient
+from core.game_engine import GameEngine
+from core.redis_client_cluster import redis_client
+from core.cache_manager import cache_manager
+from core.stream_manager import stream_manager
+from core.redis_monitor import redis_monitor
+
+# 配置日志
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
+
+app = FastAPI(
+    title="AI Business War Simulation API",
+    description="AI商战模拟系统后端API",
+    version="1.0.0"
+)
+
+# CORS配置
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],  # 在生产环境中应该设置具体的域名
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+# WebSocket连接管理器
+manager = ConnectionManager()
+
+# 游戏引擎实例
+game_engine = GameEngine()
+
+# 注册路由
+app.include_router(companies.router, prefix="/api/companies", tags=["companies"])
+app.include_router(employees.router, prefix="/api/employees", tags=["employees"])
+app.include_router(decisions.router, prefix="/api/decisions", tags=["decisions"])
+app.include_router(simulation.router, prefix="/api/simulation", tags=["simulation"])
+app.include_router(cache.router, prefix="/api/cache", tags=["cache"])
+app.include_router(streams.router, prefix="/api/streams", tags=["streams"])
+app.include_router(cluster.router, prefix="/api/cluster", tags=["cluster"])
+app.include_router(monitoring.router, prefix="/api/monitoring", tags=["monitoring"])
+app.include_router(situation.router, tags=["situation"])
+
+@app.get("/")
+async def root():
+    """根路径"""
+    return {
+        "message": "AI Business War Simulation API",
+        "version": "1.0.0",
+        "timestamp": datetime.now().isoformat()
+    }
+
+@app.get("/health")
+async def health_check():
+    """健康检查"""
+    return {"status": "healthy", "timestamp": datetime.now().isoformat()}
+
+@app.websocket("/ws/{client_id}")
+async def websocket_endpoint(websocket: WebSocket, client_id: str):
+    """WebSocket连接端点"""
+    await manager.connect(websocket, client_id)
+    logger.info(f"Client {client_id} connected")
+    
+    try:
+        while True:
+            # 等待客户端消息
+            data = await websocket.receive_text()
+            message = json.loads(data)
+            
+            # 处理不同类型的消息
+            if message.get("type") == "ping":
+                await websocket.send_text(json.dumps({"type": "pong"}))
+            elif message.get("type") == "subscribe":
+                # 订阅特定事件
+                channel = message.get("channel")
+                await manager.subscribe(client_id, channel)
+            elif message.get("type") == "unsubscribe":
+                # 取消订阅
+                channel = message.get("channel")
+                await manager.unsubscribe(client_id, channel)
+            
+    except WebSocketDisconnect:
+        logger.info(f"Client {client_id} disconnected")
+        manager.disconnect(client_id)
+    except Exception as e:
+        logger.error(f"WebSocket error for client {client_id}: {e}")
+        manager.disconnect(client_id)
+
+@app.on_event("startup")
+async def startup_event():
+    """应用启动事件"""
+    logger.info("AI Business War Simulation API starting up...")
+    
+    # 初始化Redis连接
+    await redis_client.connect()
+    if redis_client.redis:
+        logger.info("Redis connection established")
+    else:
+        logger.info("Running without Redis caching")
+    
+    # 初始化流管理器
+    await stream_manager.initialize()
+    
+    # 初始化游戏引擎
+    await game_engine.initialize()
+    
+    # 启动Redis性能监控
+    await redis_monitor.start_monitoring()
+    
+    # 启动后台任务
+    asyncio.create_task(background_simulation_task())
+    
+    logger.info("API startup completed")
+
+@app.on_event("shutdown")
+async def shutdown_event():
+    """应用关闭事件"""
+    logger.info("AI Business War Simulation API shutting down...")
+    
+    # 关闭流管理器
+    await stream_manager.cleanup()
+    
+    # 停止Redis性能监控
+    await redis_monitor.stop_monitoring()
+    
+    # 关闭游戏引擎
+    await game_engine.shutdown()
+    
+    # 断开Redis连接
+    try:
+        await redis_client.disconnect()
+        logger.info("Redis connection closed")
+    except Exception as e:
+        logger.error(f"Error closing Redis connection: {e}")
+    
+    logger.info("API shutdown completed")
+
+async def background_simulation_task():
+    """后台模拟任务"""
+    while True:
+        try:
+            # 每30秒执行一次游戏步进
+            await asyncio.sleep(30)
+            
+            # 执行游戏步进
+            events = await game_engine.step()
+            
+            # 广播事件到所有连接的客户端
+            for event in events:
+                await manager.broadcast("game_events", event)
+                
+        except Exception as e:
+            logger.error(f"Background simulation task error: {e}")
+            await asyncio.sleep(5)  # 错误后短暂等待
+
+if __name__ == "__main__":
+    import uvicorn
+    uvicorn.run(app, host="0.0.0.0", port=8000)
