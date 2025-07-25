@@ -1,0 +1,126 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>WebSocket Browser Test</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 20px; }
+        .log { background: #f5f5f5; padding: 10px; margin: 10px 0; border-radius: 5px; }
+        .connected { color: green; }
+        .error { color: red; }
+        .info { color: blue; }
+    </style>
+</head>
+<body>
+    <h1>WebSocket Browser Test</h1>
+    <div id="status">Status: Starting...</div>
+    <button onclick="connect()">Connect</button>
+    <button onclick="disconnect()">Disconnect</button>
+    <button onclick="sendPing()">Send Ping</button>
+    <button onclick="subscribe()">Subscribe to game_events</button>
+    <button onclick="clearLogs()">Clear Logs</button>
+    
+    <div id="logs"></div>
+
+    <script>
+        let ws = null;
+        let clientId = `client_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+        
+        function addLog(message, type = 'info') {
+            const logsDiv = document.getElementById('logs');
+            const logDiv = document.createElement('div');
+            logDiv.className = `log ${type}`;
+            logDiv.textContent = `[${new Date().toLocaleTimeString()}] ${message}`;
+            logsDiv.appendChild(logDiv);
+            logsDiv.scrollTop = logsDiv.scrollHeight;
+        }
+        
+        function updateStatus(status) {
+            document.getElementById('status').textContent = `Status: ${status}`;
+        }
+        
+        function connect() {
+            if (ws) {
+                addLog('WebSocket already connected or connecting', 'error');
+                return;
+            }
+            
+            // 测试WebSocket连接
+            const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+            const wsUrl = `${protocol}//localhost:8000/ws/${clientId}`;
+            
+            addLog(`Connecting to: ${wsUrl}`, 'info');
+            updateStatus('Connecting...');
+            
+            try {
+                ws = new WebSocket(wsUrl);
+                
+                ws.onopen = function(event) {
+                    addLog('WebSocket connected successfully!', 'connected');
+                    updateStatus('Connected');
+                };
+                
+                ws.onmessage = function(event) {
+                    try {
+                        const data = JSON.parse(event.data);
+                        addLog(`Received: ${JSON.stringify(data)}`, 'info');
+                    } catch (e) {
+                        addLog(`Received raw: ${event.data}`, 'info');
+                    }
+                };
+                
+                ws.onclose = function(event) {
+                    addLog(`WebSocket closed. Code: ${event.code}, Reason: ${event.reason}`, 'info');
+                    updateStatus('Disconnected');
+                    ws = null;
+                };
+                
+                ws.onerror = function(error) {
+                    addLog(`WebSocket error: ${error}`, 'error');
+                    updateStatus('Error');
+                };
+                
+            } catch (error) {
+                addLog(`Error creating WebSocket: ${error}`, 'error');
+                updateStatus('Error');
+            }
+        }
+        
+        function disconnect() {
+            if (ws) {
+                ws.close();
+                ws = null;
+                addLog('Disconnected manually', 'info');
+            }
+        }
+        
+        function sendPing() {
+            if (ws && ws.readyState === WebSocket.OPEN) {
+                ws.send(JSON.stringify({ type: 'ping' }));
+                addLog('Sent ping', 'info');
+            } else {
+                addLog('WebSocket not connected', 'error');
+            }
+        }
+        
+        function subscribe() {
+            if (ws && ws.readyState === WebSocket.OPEN) {
+                ws.send(JSON.stringify({ type: 'subscribe', channel: 'game_events' }));
+                addLog('Subscribed to game_events', 'info');
+            } else {
+                addLog('WebSocket not connected', 'error');
+            }
+        }
+        
+        function clearLogs() {
+            document.getElementById('logs').innerHTML = '';
+        }
+        
+        // Auto-connect on page load
+        window.onload = function() {
+            addLog('Page loaded, ready to test WebSocket connection', 'info');
+        };
+    </script>
+</body>
+</html>

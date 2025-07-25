@@ -3,6 +3,7 @@
 import React, { useState, useEffect } from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { AnimatedCounter } from '@/components/ui/animated-number';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { ScrollArea } from '@/components/ui/scroll-area';
@@ -40,12 +41,17 @@ interface Decision {
   id: string;
   type: string;
   content: string;
-  status: 'pending' | 'approved' | 'rejected';
+  status: 'pending' | 'approved' | 'rejected' | 'tied';
   employee_id: string;
   company_id: string;
   timestamp: string;
   priority: 'high' | 'medium' | 'low';
   impact_score: number;
+  votes_for: number;
+  votes_against: number;
+  abstentions: number;
+  vote_result: string;
+  approval_rate: number;
 }
 
 interface Company {
@@ -88,105 +94,121 @@ export const CompanyDetailsModal: React.FC<CompanyDetailsModalProps> = ({
   }, [isOpen, companyId]);
 
   const loadCompanyDetails = async () => {
+    if (!companyId) return;
+    
     setLoading(true);
     
-    // 模拟API调用延迟
-    await new Promise(resolve => setTimeout(resolve, 500));
-    
-    // 模拟公司数据
-    const mockCompany: Company = {
-      id: companyId,
-      name: companyId === 'comp1' ? '科技创新公司' : '数据科技',
-      type: companyId === 'comp1' ? 'centralized' : 'decentralized',
-      funds: Math.floor(Math.random() * 100000) + 50000,
-      size: Math.floor(Math.random() * 50) + 20,
-      status: 'active',
-      employees: [
-        {
-          id: 'emp1',
-          name: '张CEO',
-          role: 'ceo',
-          status: 'thinking',
-          company_id: companyId,
-          performance: 92,
-          decisions_made: 45,
-          success_rate: 87,
-          current_task: '分析市场战略',
-          last_activity: new Date(Date.now() - 5000).toISOString()
-        },
-        {
-          id: 'emp2',
-          name: '李经理',
-          role: 'manager',
-          status: 'active',
-          company_id: companyId,
-          performance: 88,
-          decisions_made: 32,
-          success_rate: 79,
-          current_task: '产品开发规划',
-          last_activity: new Date(Date.now() - 12000).toISOString()
-        },
-        {
-          id: 'emp3',
-          name: '王员工',
-          role: 'employee',
-          status: 'deciding',
-          company_id: companyId,
-          performance: 75,
-          decisions_made: 18,
-          success_rate: 83,
-          current_task: '技术方案评估',
-          last_activity: new Date(Date.now() - 8000).toISOString()
+    try {
+      // 获取公司详情
+      const companyResponse = await fetch(`/api/companies/${companyId}`);
+      if (!companyResponse.ok) {
+        if (companyResponse.status === 404) {
+          throw new Error('公司不存在');
         }
-      ],
-      performance_score: 85,
-      market_share: 23,
-      growth_rate: 12,
-      active_decisions: 3,
-      total_decisions: 95,
-      success_rate: 82
-    };
-
-    // 模拟决策数据
-    const mockDecisions: Decision[] = [
-      {
-        id: 'dec1',
-        type: '产品决策',
-        content: '增加AI功能模块的研发投入',
-        status: 'pending',
-        employee_id: 'emp1',
-        company_id: companyId,
-        timestamp: new Date(Date.now() - 30000).toISOString(),
-        priority: 'high',
-        impact_score: 85
-      },
-      {
-        id: 'dec2',
-        type: '市场策略',
-        content: '扩大海外市场布局',
-        status: 'approved',
-        employee_id: 'emp2',
-        company_id: companyId,
-        timestamp: new Date(Date.now() - 120000).toISOString(),
-        priority: 'medium',
-        impact_score: 72
-      },
-      {
-        id: 'dec3',
-        type: '技术投资',
-        content: '购买先进的云计算基础设施',
-        status: 'rejected',
-        employee_id: 'emp3',
-        company_id: companyId,
-        timestamp: new Date(Date.now() - 300000).toISOString(),
-        priority: 'low',
-        impact_score: 45
+        throw new Error(`获取公司信息失败: ${companyResponse.status}`);
       }
-    ];
-
-    setCompany(mockCompany);
-    setDecisions(mockDecisions);
-    setLoading(false);
+      
+      const companyData = await companyResponse.json();
+      
+      // 获取公司员工
+      const employeesResponse = await fetch(`/api/employees?company_id=${companyId}`);
+      const employeesData = employeesResponse.ok ? await employeesResponse.json() : [];
+      
+      // 构建完整的公司数据
+      const company: Company = {
+        id: companyData.id,
+        name: companyData.name,
+        type: companyData.company_type,
+        funds: companyData.funds,
+        size: companyData.size,
+        status: companyData.is_active ? 'active' : 'inactive',
+        employees: employeesData.map((emp: any) => ({
+          id: emp.id,
+          name: emp.name,
+          role: emp.role,
+          status: emp.status || 'active',
+          company_id: emp.company_id,
+          performance: emp.performance || 0,
+          decisions_made: emp.decisions_made || 0,
+          success_rate: emp.success_rate || 0,
+          current_task: emp.current_task || '待分配',
+          last_activity: emp.updated_at || new Date().toISOString()
+        })),
+        performance_score: companyData.productivity * 100,
+        market_share: Math.floor(Math.random() * 50) + 10, // 可以后续添加到数据库
+        growth_rate: Math.floor(Math.random() * 20) + 5, // 可以后续添加到数据库
+        active_decisions: 0, // 将通过决策数据计算
+        total_decisions: 0, // 将通过决策数据计算
+        success_rate: 0 // 将通过决策数据计算
+      };
+      
+      setCompany(company);
+      
+      // 获取公司相关决策
+      const decisionsResponse = await fetch(`/api/simulation/decisions?company_id=${companyId}`);
+      if (decisionsResponse.ok) {
+        const decisionsData = await decisionsResponse.json();
+        
+        const decisions: Decision[] = decisionsData.decisions.map((decision: any) => {
+          // 根据投票结果确定决策状态
+          let finalStatus = decision.status;
+          
+          // 如果有投票数据，根据投票结果决定状态
+          if (decision.votes_for !== undefined && decision.votes_against !== undefined) {
+            const voteResult = decision.vote_result;
+            if (voteResult === 'approved') {
+              finalStatus = 'approved';
+            } else if (voteResult === 'rejected') {
+              finalStatus = 'rejected';
+            } else if (voteResult === 'tied') {
+              finalStatus = 'tied';
+            }
+          }
+          
+          return {
+            id: decision.id,
+            type: decision.decision_type || '未知类型',
+            content: decision.content || '无内容',
+            status: finalStatus,
+            employee_id: decision.employee_id || '',
+            company_id: decision.company_id || '',
+            timestamp: decision.created_at || new Date().toISOString(),
+            priority: decision.importance > 2 ? 'high' : decision.importance > 1 ? 'medium' : 'low',
+            impact_score: decision.impact_score || 0,
+            votes_for: decision.votes_for || 0,
+            votes_against: decision.votes_against || 0,
+            abstentions: decision.abstentions || 0,
+            vote_result: decision.vote_result || 'no_votes',
+            approval_rate: decision.approval_rate || 0
+          };
+        });
+        
+        setDecisions(decisions);
+        
+        // 更新公司的决策统计
+        const activeDecisions = decisions.filter(d => d.status === 'pending').length;
+        const totalDecisions = decisions.length;
+        const successfulDecisions = decisions.filter(d => d.status === 'approved').length;
+        const successRate = totalDecisions > 0 ? Math.round((successfulDecisions / totalDecisions) * 100) : 0;
+        
+        setCompany(prev => prev ? {
+          ...prev,
+          active_decisions: activeDecisions,
+          total_decisions: totalDecisions,
+          success_rate: successRate
+        } : null);
+      } else {
+        setDecisions([]);
+      }
+      
+    } catch (error) {
+      console.error('Error loading company details:', error);
+      // 不在这里显示错误，就让用户知道加载失败即可
+      setCompany(null);
+      setDecisions([]);
+    } finally {
+      setLoading(false);
+    }
   };
 
   const getStatusIcon = (status: string) => {
@@ -225,6 +247,8 @@ export const CompanyDetailsModal: React.FC<CompanyDetailsModalProps> = ({
         return <CheckCircle className="w-4 h-4 text-green-500" />;
       case 'rejected':
         return <XCircle className="w-4 h-4 text-red-500" />;
+      case 'tied':
+        return <AlertCircle className="w-4 h-4 text-orange-500" />;
       case 'pending':
         return <AlertCircle className="w-4 h-4 text-yellow-500" />;
       default:
@@ -325,54 +349,58 @@ export const CompanyDetailsModal: React.FC<CompanyDetailsModalProps> = ({
                     <span className="text-sm text-muted-foreground">资金</span>
                     <span className="flex items-center gap-1">
                       <DollarSign className="w-4 h-4" />
-                      {company.funds.toLocaleString()}
+                      <AnimatedCounter value={company.funds} formatValue={(v) => v.toLocaleString()} />
                     </span>
                   </div>
                   <div className="flex items-center justify-between">
                     <span className="text-sm text-muted-foreground">规模</span>
-                    <span className="flex items-center gap-1">
-                      <Users className="w-4 h-4" />
-                      {company.size} 人
-                    </span>
+                    <span>{company.size}人</span>
                   </div>
                   <div className="flex items-center justify-between">
                     <span className="text-sm text-muted-foreground">状态</span>
-                    <Badge className={getStatusColor(company.status)}>
-                      {company.status === 'active' ? '活跃' : '非活跃'}
-                    </Badge>
+                    <div className="flex items-center gap-1">
+                      {getStatusIcon(company.status)}
+                      <Badge className={getStatusColor(company.status)}>
+                        {company.status === 'active' ? '活跃' : '不活跃'}
+                      </Badge>
+                    </div>
                   </div>
                 </CardContent>
               </Card>
-              
+
               {/* 性能指标 */}
               <Card>
                 <CardHeader className="pb-3">
                   <CardTitle className="text-lg">性能指标</CardTitle>
                 </CardHeader>
-                <CardContent className="space-y-4">
-                  <div>
-                    <div className="flex items-center justify-between mb-2">
-                      <span className="text-sm text-muted-foreground">综合评分</span>
-                      <span className="text-sm font-medium">{company.performance_score}%</span>
+                <CardContent className="space-y-3">
+                  <div className="space-y-2">
+                    <div className="flex justify-between text-sm">
+                      <span>绩效评分</span>
+                      <span>{company.performance_score}%</span>
                     </div>
                     <Progress value={company.performance_score} className="h-2" />
                   </div>
-                  <div>
-                    <div className="flex items-center justify-between mb-2">
-                      <span className="text-sm text-muted-foreground">市场份额</span>
-                      <span className="text-sm font-medium">{company.market_share}%</span>
+                  <div className="space-y-2">
+                    <div className="flex justify-between text-sm">
+                      <span>市场份额</span>
+                      <span>{company.market_share}%</span>
                     </div>
                     <Progress value={company.market_share} className="h-2" />
                   </div>
-                  <div>
-                    <div className="flex items-center justify-between mb-2">
-                      <span className="text-sm text-muted-foreground">增长率</span>
-                      <span className="text-sm font-medium flex items-center gap-1">
-                        <TrendingUp className="w-4 h-4" />
-                        {company.growth_rate}%
-                      </span>
+                  <div className="space-y-2">
+                    <div className="flex justify-between text-sm">
+                      <span>增长率</span>
+                      <span>{company.growth_rate}%</span>
                     </div>
                     <Progress value={company.growth_rate} className="h-2" />
+                  </div>
+                  <div className="space-y-2">
+                    <div className="flex justify-between text-sm">
+                      <span>成功率</span>
+                      <span>{company.success_rate}%</span>
+                    </div>
+                    <Progress value={company.success_rate} className="h-2" />
                   </div>
                 </CardContent>
               </Card>
@@ -380,34 +408,28 @@ export const CompanyDetailsModal: React.FC<CompanyDetailsModalProps> = ({
             
             {/* 决策统计 */}
             <Card>
-              <CardHeader className="pb-3">
-                <CardTitle className="text-lg">决策统计</CardTitle>
+              <CardHeader>
+                <CardTitle>决策统计</CardTitle>
               </CardHeader>
               <CardContent>
-                <div className="grid grid-cols-1 md:grid-cols-4 gap-4 text-center">
-                  <div>
+                <div className="grid grid-cols-3 gap-4">
+                  <div className="text-center">
                     <div className="text-2xl font-bold text-blue-600">
-                      {company.active_decisions}
+                      <AnimatedCounter value={company.active_decisions} />
                     </div>
-                    <div className="text-sm text-muted-foreground">进行中</div>
+                    <div className="text-sm text-muted-foreground">活跃决策</div>
                   </div>
-                  <div>
+                  <div className="text-center">
                     <div className="text-2xl font-bold text-green-600">
-                      {company.total_decisions}
+                      <AnimatedCounter value={company.total_decisions} />
                     </div>
                     <div className="text-sm text-muted-foreground">总决策数</div>
                   </div>
-                  <div>
-                    <div className="text-2xl font-bold text-purple-600">
-                      {company.success_rate}%
+                  <div className="text-center">
+                    <div className="text-2xl font-bold text-orange-600">
+                      <AnimatedCounter value={company.success_rate} formatValue={(v) => `${v}%`} />
                     </div>
                     <div className="text-sm text-muted-foreground">成功率</div>
-                  </div>
-                  <div>
-                    <div className="text-2xl font-bold text-orange-600">
-                      {company.employees.length}
-                    </div>
-                    <div className="text-sm text-muted-foreground">AI Agent</div>
                   </div>
                 </div>
               </CardContent>
@@ -415,99 +437,114 @@ export const CompanyDetailsModal: React.FC<CompanyDetailsModalProps> = ({
           </TabsContent>
           
           <TabsContent value="employees" className="space-y-4">
-            <ScrollArea className="h-96">
+            <ScrollArea className="h-[400px]">
               <div className="space-y-4">
-                {company.employees.map((employee) => (
-                  <Card key={employee.id}>
-                    <CardContent className="p-4">
-                      <div className="flex items-start justify-between mb-3">
-                        <div className="flex items-center gap-2">
-                          <div className="flex items-center gap-2">
-                            {getStatusIcon(employee.status)}
-                            <span className="font-medium">{employee.name}</span>
+                {company.employees.length > 0 ? (
+                  company.employees.map((employee) => (
+                    <Card key={employee.id}>
+                      <CardContent className="pt-6">
+                        <div className="flex items-center justify-between">
+                          <div className="flex items-center gap-3">
+                            <div className="flex items-center gap-2">
+                              {getStatusIcon(employee.status)}
+                              <div>
+                                <div className="font-medium">{employee.name}</div>
+                                <div className="text-sm text-muted-foreground">
+                                  {employee.role === 'ceo' ? 'CEO' : 
+                                   employee.role === 'manager' ? '经理' : '员工'}
+                                </div>
+                              </div>
+                            </div>
                           </div>
-                          <Badge variant="outline" className="text-xs">
-                            {employee.role === 'ceo' ? 'CEO' : 
-                             employee.role === 'manager' ? '经理' : '员工'}
-                          </Badge>
-                          <Badge className={getStatusColor(employee.status)}>
-                            {employee.status === 'active' ? '活跃' :
-                             employee.status === 'thinking' ? '思考中' :
-                             employee.status === 'deciding' ? '决策中' : '空闲'}
-                          </Badge>
+                          <div className="flex items-center gap-2">
+                            <Badge className={getStatusColor(employee.status)}>
+                              {employee.status === 'active' ? '活跃' :
+                               employee.status === 'thinking' ? '思考中' :
+                               employee.status === 'deciding' ? '决策中' : '空闲'}
+                            </Badge>
+                          </div>
                         </div>
-                        <div className="text-xs text-muted-foreground">
-                          {formatTime(employee.last_activity)}
+                        <div className="mt-4 grid grid-cols-2 gap-4 text-sm">
+                          <div>
+                            <span className="text-muted-foreground">绩效：</span>
+                            <span className="font-medium">{employee.performance}%</span>
+                          </div>
+                          <div>
+                            <span className="text-muted-foreground">决策数：</span>
+                            <span className="font-medium">{employee.decisions_made}</span>
+                          </div>
+                          <div>
+                            <span className="text-muted-foreground">成功率：</span>
+                            <span className="font-medium">{employee.success_rate}%</span>
+                          </div>
+                          <div>
+                            <span className="text-muted-foreground">当前任务：</span>
+                            <span className="font-medium">{employee.current_task}</span>
+                          </div>
                         </div>
-                      </div>
-                      
-                      {employee.current_task && (
-                        <div className="mb-3">
-                          <span className="text-sm font-medium text-muted-foreground">当前任务：</span>
-                          <span className="text-sm ml-1">{employee.current_task}</span>
+                        <div className="mt-2 text-xs text-muted-foreground">
+                          最后活动：{formatTime(employee.last_activity)}
                         </div>
-                      )}
-                      
-                      <div className="grid grid-cols-3 gap-4 text-sm">
-                        <div>
-                          <div className="text-muted-foreground">绩效</div>
-                          <div className="font-medium">{employee.performance}%</div>
-                        </div>
-                        <div>
-                          <div className="text-muted-foreground">决策数</div>
-                          <div className="font-medium">{employee.decisions_made}</div>
-                        </div>
-                        <div>
-                          <div className="text-muted-foreground">成功率</div>
-                          <div className="font-medium">{employee.success_rate}%</div>
-                        </div>
-                      </div>
-                    </CardContent>
-                  </Card>
-                ))}
+                      </CardContent>
+                    </Card>
+                  ))
+                ) : (
+                  <div className="text-center py-8 text-muted-foreground">
+                    暂无员工数据
+                  </div>
+                )}
               </div>
             </ScrollArea>
           </TabsContent>
           
           <TabsContent value="decisions" className="space-y-4">
-            <ScrollArea className="h-96">
+            <ScrollArea className="h-[400px]">
               <div className="space-y-4">
-                {decisions.map((decision) => (
-                  <Card key={decision.id}>
-                    <CardContent className="p-4">
-                      <div className="flex items-start justify-between mb-3">
-                        <div className="flex items-center gap-2">
-                          {getDecisionStatusIcon(decision.status)}
-                          <span className="font-medium">{decision.type}</span>
-                          <Badge className={getPriorityColor(decision.priority)}>
-                            {decision.priority === 'high' ? '高优先级' :
-                             decision.priority === 'medium' ? '中优先级' : '低优先级'}
-                          </Badge>
+                {decisions.length > 0 ? (
+                  decisions.map((decision) => (
+                    <Card key={decision.id}>
+                      <CardContent className="pt-6">
+                        <div className="flex items-start justify-between">
+                          <div className="flex-1">
+                            <div className="flex items-center gap-2 mb-2">
+                              <Badge variant="outline">{decision.type}</Badge>
+                              <Badge className={getPriorityColor(decision.priority)}>
+                                {decision.priority === 'high' ? '高优先级' :
+                                 decision.priority === 'medium' ? '中优先级' : '低优先级'}
+                              </Badge>
+                            </div>
+                            <div className="text-sm mb-2">{decision.content}</div>
+                            <div className="text-xs text-muted-foreground space-y-1">
+                              <div>{formatTime(decision.timestamp)} • 影响分数: {decision.impact_score}</div>
+                              {(decision.votes_for > 0 || decision.votes_against > 0 || decision.abstentions > 0) && (
+                                <div className="flex items-center gap-4">
+                                  <span className="text-green-600">支持: {decision.votes_for}</span>
+                                  <span className="text-red-600">反对: {decision.votes_against}</span>
+                                  {decision.abstentions > 0 && (
+                                    <span className="text-gray-600">弃权: {decision.abstentions}</span>
+                                  )}
+                                </div>
+                              )}
+                            </div>
+                          </div>
+                          <div className="flex items-center gap-2">
+                            {getDecisionStatusIcon(decision.status)}
+                            <Badge variant="outline">
+                              {decision.status === 'pending' ? '待处理' :
+                               decision.status === 'approved' ? '已批准' : 
+                               decision.status === 'rejected' ? '已拒绝' : 
+                               decision.status === 'tied' ? '平票' : '未知状态'}
+                            </Badge>
+                          </div>
                         </div>
-                        <div className="text-xs text-muted-foreground">
-                          {formatTime(decision.timestamp)}
-                        </div>
-                      </div>
-                      
-                      <p className="text-sm mb-3">{decision.content}</p>
-                      
-                      <div className="flex items-center justify-between text-sm">
-                        <div className="flex items-center gap-4">
-                          <span className="text-muted-foreground">
-                            发起人：{company.employees.find(e => e.id === decision.employee_id)?.name}
-                          </span>
-                          <span className="text-muted-foreground">
-                            影响分：{decision.impact_score}
-                          </span>
-                        </div>
-                        <Badge variant="outline">
-                          {decision.status === 'pending' ? '待处理' :
-                           decision.status === 'approved' ? '已批准' : '已拒绝'}
-                        </Badge>
-                      </div>
-                    </CardContent>
-                  </Card>
-                ))}
+                      </CardContent>
+                    </Card>
+                  ))
+                ) : (
+                  <div className="text-center py-8 text-muted-foreground">
+                    暂无决策历史
+                  </div>
+                )}
               </div>
             </ScrollArea>
           </TabsContent>

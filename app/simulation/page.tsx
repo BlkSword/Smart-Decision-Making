@@ -13,7 +13,7 @@ import { AILogPanel } from '@/components/simulation/AILogPanel';
 import { CreateCompanyModal } from '@/components/simulation/CreateCompanyModal';
 import { CompanyDetailsModal } from '@/components/simulation/CompanyDetailsModal';
 import { WebSocketConnection } from '@/lib/websocket';
-import { Play, Pause, Square, Settings, Plus, Network } from 'lucide-react';
+import { Play, Pause, Square, Settings, Plus, Network, RefreshCw, Clock } from 'lucide-react';
 import Link from 'next/link';
 
 interface Company {
@@ -52,24 +52,101 @@ export default function SimulationPage() {
   const [showDetailsModal, setShowDetailsModal] = useState(false);
   const [detailsCompanyId, setDetailsCompanyId] = useState<string | null>(null);
   const [showResetConfirm, setShowResetConfirm] = useState(false);
+  const [lastUpdateTime, setLastUpdateTime] = useState<number>(Date.now());
+  const [autoRefreshEnabled, setAutoRefreshEnabled] = useState(false);
+  const [wsStatus, setWsStatus] = useState('disconnected');
+  const [wsError, setWsError] = useState<string | null>(null);
 
   // 初始化WebSocket连接
   useEffect(() => {
-    const ws = new WebSocketConnection();
-    setWsConnection(ws);
+    console.log('Initializing WebSocket connection...');
+    
+    try {
+      const ws = new WebSocketConnection();
+      setWsConnection(ws);
 
-    ws.onMessage = (data) => {
-      if (data.channel === 'game_events') {
-        // 处理游戏事件
-        console.log('Game event received:', data.data);
-        // 刷新数据
-        loadSimulationData();
-      }
-    };
+      ws.onMessage = (data) => {
+        console.log('WebSocket message received:', data.type, data);
+        
+        // 处理广播事件
+        if (data.type === 'broadcast') {
+          console.log('Broadcast received:', data.channel, data.data);
+          
+          // 处理游戏事件
+          if (data.channel === 'game_events') {
+            console.log('Game event received, refreshing data...');
+            loadSimulationData();
+            setLastUpdateTime(Date.now());
+          }
+          
+          // 处理数据变化通知
+          if (data.channel === 'data_changed') {
+            console.log('Data changed event received, refreshing data...');
+            loadSimulationData();
+            setLastUpdateTime(Date.now());
+          }
+        }
+        
+        // 处理数据更新响应
+        if (data.type === 'data_update') {
+          console.log('Data update received, updating UI...');
+          if (data.companies) {
+            setCompanies(data.companies);
+          }
+          if (data.simulationStatus) {
+            setSimulationStatus(data.simulationStatus);
+          }
+          setLastUpdateTime(Date.now());
+          setError(null);
+        }
+        
+        // 处理pong响应
+        if (data.type === 'pong') {
+          console.log('Received pong from server');
+        }
+        
+        // 处理错误
+        if (data.type === 'error') {
+          console.error('WebSocket error:', data.message);
+          setError(data.message);
+        }
+      };
 
-    return () => {
-      ws.disconnect();
-    };
+      ws.onConnecting = () => {
+        console.log('🔗 WebSocket connecting...');
+        setWsStatus('connecting');
+        setWsError(null);
+      };
+      
+      ws.onConnect = () => {
+        console.log('✅ WebSocket connected successfully!');
+        setWsStatus('connected');
+        setWsError(null);
+        setError(null);
+      };
+
+      ws.onError = (error) => {
+        console.error('❌ WebSocket connection error:', error);
+        setWsStatus('error');
+        setWsError('WebSocket connection failed');
+        setError('WebSocket connection failed');
+      };
+
+      ws.onClose = () => {
+        console.log('🔒 WebSocket connection closed');
+        setWsStatus('disconnected');
+        setWsError(null);
+      };
+
+      console.log('WebSocket connection setup complete');
+      return () => {
+        console.log('Disconnecting WebSocket...');
+        ws.disconnect();
+      };
+    } catch (error) {
+      console.error('Error setting up WebSocket:', error);
+      setError('Failed to setup WebSocket connection');
+    }
   }, []);
 
   // 加载模拟数据
@@ -104,6 +181,8 @@ export default function SimulationPage() {
   useEffect(() => {
     loadSimulationData();
   }, []);
+
+  // 移除了自动刷新功能 - 改为纯事件驱动更新
 
   // 控制模拟
   const controlSimulation = async (action: 'start' | 'pause' | 'resume' | 'stop') => {
@@ -258,6 +337,39 @@ export default function SimulationPage() {
               时间线
             </Button>
           </Link>
+          
+          <Button
+            onClick={() => loadSimulationData()}
+            size="sm"
+            variant="outline"
+          >
+            <RefreshCw className="h-4 w-4 mr-1" />
+            手动刷新
+          </Button>
+          
+          <div className="flex items-center space-x-1 text-sm text-muted-foreground">
+            <Clock className="h-4 w-4" />
+            <span>最新更新: {new Date(lastUpdateTime).toLocaleTimeString()}</span>
+          </div>
+          
+          <div className="flex items-center space-x-1 text-sm">
+            <div className={`w-2 h-2 rounded-full ${
+              wsStatus === 'connected' ? 'bg-green-500' : 
+              wsStatus === 'connecting' ? 'bg-yellow-500' : 
+              wsStatus === 'error' ? 'bg-red-500' : 
+              'bg-gray-400'
+            }`} />
+            <span className={`text-xs ${
+              wsStatus === 'connected' ? 'text-green-600' : 
+              wsStatus === 'error' ? 'text-red-600' : 
+              'text-gray-500'
+            }`}>
+              {wsStatus === 'connected' ? '实时连接' : 
+               wsStatus === 'connecting' ? '连接中' : 
+               wsStatus === 'error' ? '连接失败' : 
+               '未连接'}
+            </span>
+          </div>
           
           <Button
             onClick={() => controlSimulation('start')}
@@ -415,7 +527,7 @@ export default function SimulationPage() {
               <CardDescription>实时事件与决策</CardDescription>
             </CardHeader>
             <CardContent className="p-0">
-              <EventsFeed companyId={selectedCompany} />
+              <EventsFeed companyId={selectedCompany} autoRefresh={false} />
             </CardContent>
           </Card>
         </div>

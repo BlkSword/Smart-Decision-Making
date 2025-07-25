@@ -177,7 +177,22 @@ async def get_recent_decisions(
                 "created_at": d.created_at.isoformat(),
                 "ai_provider": d.ai_provider,
                 "ai_model": d.ai_model,
-                "cost": d.cost
+                "cost": d.cost,
+                # 添加缺失的关键字段
+                "status": d.status.value,
+                "importance": d.importance,
+                "urgency": d.urgency,
+                "impact_score": d.impact_score,
+                # 投票相关字段
+                "votes_for": d.votes_for,
+                "votes_against": d.votes_against,
+                "abstentions": d.abstentions,
+                "vote_result": d.get_vote_result(),
+                "approval_rate": d.get_approval_rate(),
+                # 时间相关字段
+                "started_at": d.started_at.isoformat() if d.started_at else None,
+                "completed_at": d.completed_at.isoformat() if d.completed_at else None,
+                "outcome": d.outcome
             }
             for d in decisions
         ],

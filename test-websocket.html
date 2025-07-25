@@ -1,0 +1,55 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>WebSocket Test</title>
+</head>
+<body>
+    <h1>WebSocket Connection Test</h1>
+    <div id="log"></div>
+    
+    <script>
+        const log = document.getElementById('log');
+        function addLog(message) {
+            const div = document.createElement('div');
+            div.textContent = new Date().toISOString() + ': ' + message;
+            log.appendChild(div);
+            console.log(message);
+        }
+        
+        // 测试WebSocket连接
+        const clientId = 'test_client_' + Date.now();
+        const wsUrl = 'ws://localhost:8000/ws/' + clientId;
+        
+        addLog('Attempting to connect to: ' + wsUrl);
+        
+        const ws = new WebSocket(wsUrl);
+        
+        ws.onopen = function() {
+            addLog('WebSocket connected successfully');
+            
+            // 发送订阅消息
+            ws.send(JSON.stringify({
+                type: 'subscribe',
+                channel: 'game_events'
+            }));
+            
+            // 发送ping
+            ws.send(JSON.stringify({
+                type: 'ping'
+            }));
+        };
+        
+        ws.onmessage = function(event) {
+            addLog('Received: ' + event.data);
+        };
+        
+        ws.onclose = function() {
+            addLog('WebSocket connection closed');
+        };
+        
+        ws.onerror = function(error) {
+            addLog('WebSocket error: ' + JSON.stringify(error));
+        };
+    </script>
+</body>
+</html>

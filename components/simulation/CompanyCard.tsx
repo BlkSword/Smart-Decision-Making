@@ -4,6 +4,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Badge } from '@/components/ui/badge';
 import { Building2, Users, DollarSign, TrendingUp } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { AnimatedCurrency, AnimatedCounter, AnimatedPercentage } from '@/components/ui/animated-number';
 
 interface Company {
   id: string;
@@ -34,14 +35,7 @@ export function CompanyCard({ company, isSelected = false, onClick, onDoubleClic
     e.stopPropagation(); // 防止事件冒泡
     onDoubleClick?.();
   };
-  const formatCurrency = (amount: number) => {
-    return new Intl.NumberFormat('zh-CN', {
-      style: 'currency',
-      currency: 'CNY',
-      minimumFractionDigits: 0,
-      maximumFractionDigits: 0,
-    }).format(amount);
-  };
+  // formatCurrency 函数已经被 AnimatedCurrency 组件替代
 
   const getCompanyTypeLabel = (type: string) => {
     return type === 'centralized' ? '集权制' : '去中心化';
@@ -87,7 +81,9 @@ export function CompanyCard({ company, isSelected = false, onClick, onDoubleClic
           <div className="flex items-center space-x-2">
             <DollarSign className="h-4 w-4 text-green-600" />
             <div>
-              <p className="text-sm font-medium">{formatCurrency(company.funds)}</p>
+              <p className="text-sm font-medium">
+                <AnimatedCurrency value={company.funds} />
+              </p>
               <p className="text-xs text-muted-foreground">资金</p>
             </div>
           </div>
@@ -96,7 +92,9 @@ export function CompanyCard({ company, isSelected = false, onClick, onDoubleClic
           <div className="flex items-center space-x-2">
             <Users className="h-4 w-4 text-blue-600" />
             <div>
-              <p className="text-sm font-medium">{company.size} 人</p>
+              <p className="text-sm font-medium">
+                <AnimatedCounter value={company.size} suffix=" 人" />
+              </p>
               <p className="text-xs text-muted-foreground">团队规模</p>
             </div>
           </div>
@@ -109,19 +107,19 @@ export function CompanyCard({ company, isSelected = false, onClick, onDoubleClic
               {company.productivity && (
                 <div className="flex items-center space-x-1">
                   <TrendingUp className="h-3 w-3 text-orange-500" />
-                  <span>生产力: {(company.productivity * 100).toFixed(0)}%</span>
+                  <span>生产力: <AnimatedPercentage value={company.productivity} /></span>
                 </div>
               )}
               {company.innovation && (
                 <div className="flex items-center space-x-1">
                   <TrendingUp className="h-3 w-3 text-purple-500" />
-                  <span>创新: {(company.innovation * 100).toFixed(0)}%</span>
+                  <span>创新: <AnimatedPercentage value={company.innovation} /></span>
                 </div>
               )}
               {company.efficiency && (
                 <div className="flex items-center space-x-1">
                   <TrendingUp className="h-3 w-3 text-blue-500" />
-                  <span>效率: {(company.efficiency * 100).toFixed(0)}%</span>
+                  <span>效率: <AnimatedPercentage value={company.efficiency} /></span>
                 </div>
               )}
             </div>

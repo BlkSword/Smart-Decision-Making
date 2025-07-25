@@ -1,0 +1,113 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>WebSocket Connection Test</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 20px; }
+        .log { background: #f4f4f4; padding: 10px; margin: 10px 0; border-radius: 5px; }
+        .success { color: green; }
+        .error { color: red; }
+        .info { color: blue; }
+        button { padding: 10px 20px; margin: 5px; cursor: pointer; }
+    </style>
+</head>
+<body>
+    <h1>WebSocket Connection Test</h1>
+    <div>
+        <button onclick="testConnection()">Test WebSocket Connection</button>
+        <button onclick="testSubscription()">Test Subscription</button>
+        <button onclick="clearLogs()">Clear Logs</button>
+    </div>
+    
+    <div id="logs"></div>
+
+    <script>
+        let ws = null;
+        const clientId = `client_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+        
+        function log(message, type = 'info') {
+            const logs = document.getElementById('logs');
+            const logDiv = document.createElement('div');
+            logDiv.className = `log ${type}`;
+            logDiv.innerHTML = `[${new Date().toISOString()}] ${message}`;
+            logs.appendChild(logDiv);
+            logs.scrollTop = logs.scrollHeight;
+        }
+
+        function testConnection() {
+            log('🔗 开始测试WebSocket连接...');
+            
+            // 在Clacky环境中，直接连接到localhost:8000
+            const wsUrl = `ws://localhost:8000/ws/${clientId}`;
+            log(`🌐 尝试连接到: ${wsUrl}`);
+            
+            try {
+                ws = new WebSocket(wsUrl);
+                
+                ws.onopen = () => {
+                    log('✅ WebSocket连接成功!', 'success');
+                    log(`🏷️ 客户端ID: ${clientId}`, 'info');
+                };
+                
+                ws.onmessage = (event) => {
+                    log(`📨 收到消息: ${event.data}`, 'success');
+                    try {
+                        const data = JSON.parse(event.data);
+                        log(`📊 解析的数据: ${JSON.stringify(data, null, 2)}`, 'info');
+                    } catch (e) {
+                        log(`⚠️ 无法解析消息为JSON: ${e.message}`, 'error');
+                    }
+                };
+                
+                ws.onclose = (event) => {
+                    log(`🔒 WebSocket连接关闭. Code: ${event.code}, Reason: ${event.reason}`, 'info');
+                };
+                
+                ws.onerror = (error) => {
+                    log(`❌ WebSocket错误: ${error}`, 'error');
+                    log(`WebSocket状态: ${ws ? ws.readyState : 'null'}`, 'error');
+                };
+                
+            } catch (error) {
+                log(`❌ 创建WebSocket连接失败: ${error.message}`, 'error');
+            }
+        }
+
+        function testSubscription() {
+            if (!ws || ws.readyState !== WebSocket.OPEN) {
+                log('❌ WebSocket未连接，请先测试连接', 'error');
+                return;
+            }
+            
+            log('📡 测试订阅功能...');
+            
+            // 订阅游戏事件
+            const subscribeMessage = {
+                type: 'subscribe',
+                channel: 'game_events'
+            };
+            
+            ws.send(JSON.stringify(subscribeMessage));
+            log(`📤 发送订阅消息: ${JSON.stringify(subscribeMessage)}`, 'info');
+            
+            // 发送ping消息
+            setTimeout(() => {
+                const pingMessage = { type: 'ping' };
+                ws.send(JSON.stringify(pingMessage));
+                log(`💓 发送Ping消息: ${JSON.stringify(pingMessage)}`, 'info');
+            }, 1000);
+        }
+
+        function clearLogs() {
+            document.getElementById('logs').innerHTML = '';
+        }
+
+        // 页面加载时自动测试连接
+        window.onload = () => {
+            log('🚀 页面加载完成，准备测试WebSocket连接...');
+        };
+    </script>
+</body>
+</html>

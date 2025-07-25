@@ -12,6 +12,7 @@ sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from core.cache_manager import CacheManager
 from core.stream_manager import StreamManager
 from core.redis_client_cluster import ClusterAwareRedisClient
+from core.game_engine import GameEngine
 
 router = APIRouter(prefix="/api/situation", tags=["situation"])
 
@@ -25,48 +26,42 @@ async def get_stream_manager():
 async def get_redis_client():
     return ClusterAwareRedisClient()
 
+async def get_game_engine():
+    # 直接从 main 模块导入游戏引擎实例
+    import main
+    return main.game_engine
+
 class SituationDataGenerator:
     """态势屏幕数据生成器"""
     
-    def __init__(self, cache_manager: CacheManager, stream_manager: StreamManager, redis_client: ClusterAwareRedisClient):
+    def __init__(self, cache_manager: CacheManager, stream_manager: StreamManager, redis_client: ClusterAwareRedisClient, game_engine: GameEngine):
         self.cache = cache_manager
         self.stream = stream_manager
         self.redis = redis_client
+        self.game_engine = game_engine
         
-    async def _get_mock_companies_data(self):
-        """获取模拟公司数据"""
-        return [
-            {"id": "company_1", "name": "科技创新公司", "company_type": "centralized", "funds": 1000000, "is_active": True, "size": 10},
-            {"id": "company_2", "name": "敏捷科技", "company_type": "decentralized", "funds": 800000, "is_active": True, "size": 8}
-        ]
+    def _get_real_companies_data(self):
+        """获取真实公司数据"""
+        companies = self.game_engine.get_companies()
+        return [company.to_dict() for company in companies]
     
-    async def _get_mock_employees_data(self):
-        """获取模拟员工数据"""
-        return [
-            {"id": "emp_1", "name": "张总", "role": "ceo", "company_id": "company_1"},
-            {"id": "emp_2", "name": "李经理", "role": "manager", "company_id": "company_1"},
-            {"id": "emp_3", "name": "王程序员", "role": "employee", "company_id": "company_1"},
-            {"id": "emp_4", "name": "赵设计师", "role": "employee", "company_id": "company_1"},
-            {"id": "emp_5", "name": "刘产品", "role": "employee", "company_id": "company_2"},
-            {"id": "emp_6", "name": "陈运营", "role": "employee", "company_id": "company_2"},
-            {"id": "emp_7", "name": "吴市场", "role": "employee", "company_id": "company_2"},
-            {"id": "emp_8", "name": "徐技术", "role": "employee", "company_id": "company_2"}
-        ]
+    def _get_real_employees_data(self):
+        """获取真实员工数据"""
+        employees = self.game_engine.get_employees()
+        return [employee.to_dict() for employee in employees]
     
-    async def _get_mock_decisions_data(self):
-        """获取模拟决策数据"""
-        return [
-            {"id": "decision_1", "company_id": "company_1", "employee_id": "emp_3", "type": "产品开发", "content": "开发新功能模块", "status": "pending", "timestamp": datetime.now().isoformat()},
-            {"id": "decision_2", "company_id": "company_2", "employee_id": "emp_5", "type": "市场推广", "content": "制定营销策略", "status": "pending", "timestamp": datetime.now().isoformat()}
-        ]
+    def _get_real_decisions_data(self):
+        """获取真实决策数据"""
+        decisions = self.game_engine.get_decisions()
+        return [decision.to_dict() for decision in decisions]
 
     async def get_network_topology(self) -> Dict[str, List[Dict]]:
         """获取网络拓扑数据"""
         try:
-            # 从缓存获取公司数据 - 使用模拟数据
-            companies_data = await self._get_mock_companies_data()
-            employees_data = await self._get_mock_employees_data()
-            decisions_data = await self._get_mock_decisions_data()
+            # 从游戏引擎获取真实数据
+            companies_data = self._get_real_companies_data()
+            employees_data = self._get_real_employees_data()
+            decisions_data = self._get_real_decisions_data()
             
             if isinstance(companies_data, str):
                 companies_data = json.loads(companies_data)
@@ -229,11 +224,11 @@ class SituationDataGenerator:
     async def get_real_time_metrics(self) -> Dict[str, Any]:
         """获取实时指标"""
         try:
-            # 从缓存获取统计数据 - 使用模拟数据
-            simulation_status = {"status": "running", "current_step": 42}
-            companies_data = await self._get_mock_companies_data()
-            employees_data = await self._get_mock_employees_data()
-            decisions_data = await self._get_mock_decisions_data()
+            # 从游戏引擎获取真实数据
+            simulation_status = {"status": self.game_engine.state.value, "current_step": self.game_engine.current_round}
+            companies_data = self._get_real_companies_data()
+            employees_data = self._get_real_employees_data()
+            decisions_data = self._get_real_decisions_data()
 
             # 计算实时指标
             total_companies = len(companies_data)
@@ -287,10 +282,11 @@ class SituationDataGenerator:
 async def get_network_topology(
     cache_manager: CacheManager = Depends(get_cache_manager),
     stream_manager: StreamManager = Depends(get_stream_manager),
-    redis_client: ClusterAwareRedisClient = Depends(get_redis_client)
+    redis_client: ClusterAwareRedisClient = Depends(get_redis_client),
+    game_engine: GameEngine = Depends(get_game_engine)
 ):
     """获取网络拓扑结构"""
-    generator = SituationDataGenerator(cache_manager, stream_manager, redis_client)
+    generator = SituationDataGenerator(cache_manager, stream_manager, redis_client, game_engine)
     return await generator.get_network_topology()
 
 @router.get("/activities")
@@ -298,20 +294,22 @@ async def get_activity_stream(
     limit: int = 50,
     cache_manager: CacheManager = Depends(get_cache_manager),
     stream_manager: StreamManager = Depends(get_stream_manager),
-    redis_client: ClusterAwareRedisClient = Depends(get_redis_client)
+    redis_client: ClusterAwareRedisClient = Depends(get_redis_client),
+    game_engine: GameEngine = Depends(get_game_engine)
 ):
     """获取活动流"""
-    generator = SituationDataGenerator(cache_manager, stream_manager, redis_client)
+    generator = SituationDataGenerator(cache_manager, stream_manager, redis_client, game_engine)
     return await generator.get_activity_stream(limit)
 
 @router.get("/metrics")
 async def get_real_time_metrics(
     cache_manager: CacheManager = Depends(get_cache_manager),
     stream_manager: StreamManager = Depends(get_stream_manager),
-    redis_client: ClusterAwareRedisClient = Depends(get_redis_client)
+    redis_client: ClusterAwareRedisClient = Depends(get_redis_client),
+    game_engine: GameEngine = Depends(get_game_engine)
 ):
     """获取实时指标"""
-    generator = SituationDataGenerator(cache_manager, stream_manager, redis_client)
+    generator = SituationDataGenerator(cache_manager, stream_manager, redis_client, game_engine)
     return await generator.get_real_time_metrics()
 
 @router.get("/full-data")
@@ -319,10 +317,11 @@ async def get_full_situation_data(
     limit: int = 50,
     cache_manager: CacheManager = Depends(get_cache_manager),
     stream_manager: StreamManager = Depends(get_stream_manager),
-    redis_client: ClusterAwareRedisClient = Depends(get_redis_client)
+    redis_client: ClusterAwareRedisClient = Depends(get_redis_client),
+    game_engine: GameEngine = Depends(get_game_engine)
 ):
     """获取完整的态势数据"""
-    generator = SituationDataGenerator(cache_manager, stream_manager, redis_client)
+    generator = SituationDataGenerator(cache_manager, stream_manager, redis_client, game_engine)
     
     # 并行获取所有数据
     topology_task = generator.get_network_topology()

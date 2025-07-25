@@ -8,6 +8,7 @@ from typing import Dict, List
 import json
 import os
 from dotenv import load_dotenv
+from dataclasses import asdict
 
 # Load environment variables
 load_dotenv()
@@ -45,6 +46,45 @@ manager = ConnectionManager()
 
 # 游戏引擎实例
 game_engine = GameEngine()
+
+async def handle_data_update_request(websocket: WebSocket, client_id: str):
+    """处理数据更新请求"""
+    try:
+        # 获取当前数据
+        companies = game_engine.get_companies()
+        companies_data = [company.to_dict() for company in companies]
+        
+        simulation_status = {
+            "status": game_engine.state.value,
+            "mode": game_engine.mode.value,
+            "current_round": game_engine.current_round,
+            "current_phase": game_engine.current_phase.value,
+            "last_round_time": game_engine.last_round_time.isoformat(),
+            "companies_count": len(companies_data),
+            "employees_count": len(game_engine.employees),
+            "decisions_count": len(game_engine.decisions),
+            "events_count": len(game_engine.events),
+            "config": game_engine.config
+        }
+        
+        # 发送数据更新
+        update_data = {
+            "type": "data_update",
+            "companies": companies_data,
+            "simulationStatus": simulation_status,
+            "timestamp": datetime.now().isoformat()
+        }
+        
+        await websocket.send_text(json.dumps(update_data))
+        logger.debug(f"Sent data update to client {client_id}")
+        
+    except Exception as e:
+        logger.error(f"Error handling data update request for {client_id}: {e}")
+        await websocket.send_text(json.dumps({
+            "type": "error",
+            "message": "Failed to get data update",
+            "timestamp": datetime.now().isoformat()
+        }))
 
 # 注册路由
 app.include_router(companies.router, prefix="/api/companies", tags=["companies"])
@@ -90,10 +130,15 @@ async def websocket_endpoint(websocket: WebSocket, client_id: str):
                 # 订阅特定事件
                 channel = message.get("channel")
                 await manager.subscribe(client_id, channel)
+                logger.info(f"Client {client_id} subscribed to {channel}")
             elif message.get("type") == "unsubscribe":
                 # 取消订阅
                 channel = message.get("channel")
                 await manager.unsubscribe(client_id, channel)
+                logger.info(f"Client {client_id} unsubscribed from {channel}")
+            elif message.get("type") == "request_data_update":
+                # 处理数据更新请求
+                await handle_data_update_request(websocket, client_id)
             
     except WebSocketDisconnect:
         logger.info(f"Client {client_id} disconnected")
@@ -164,7 +209,17 @@ async def background_simulation_task():
                 
                 # 广播事件到所有连接的客户端
                 for event in events:
-                    await manager.broadcast("game_events", event)
+                    event_dict = event.to_dict() if hasattr(event, 'to_dict') else asdict(event)
+                    await manager.broadcast("game_events", event_dict)
+                
+                # 广播数据更新通知
+                if events:
+                    await manager.broadcast("data_changed", {
+                        "type": "round_completed",
+                        "round": game_engine.current_round,
+                        "events_count": len(events),
+                        "timestamp": datetime.now().isoformat()
+                    })
                 
         except Exception as e:
             logger.error(f"Background simulation task error: {e}")

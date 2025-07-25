@@ -3,6 +3,7 @@
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Building2, Users, Brain, Activity, Clock, DollarSign } from 'lucide-react';
+import { AnimatedNumber, AnimatedCounter } from '@/components/ui/animated-number';
 
 interface SimulationStats {
   status: string;
@@ -82,7 +83,7 @@ export function SimulationStats({ stats }: SimulationStatsProps) {
             <span className="text-sm font-medium">当前轮次</span>
           </div>
           <div className="text-2xl font-bold text-primary">
-            {stats.current_round}
+            <AnimatedCounter value={stats.current_round} />
           </div>
           <div className="text-xs text-muted-foreground">
             {stats.current_phase}
@@ -98,7 +99,7 @@ export function SimulationStats({ stats }: SimulationStatsProps) {
             <span className="text-sm font-medium">参与公司</span>
           </div>
           <div className="text-2xl font-bold text-blue-600">
-            {stats.companies_count}
+            <AnimatedCounter value={stats.companies_count} />
           </div>
         </CardContent>
       </Card>
@@ -111,7 +112,7 @@ export function SimulationStats({ stats }: SimulationStatsProps) {
             <span className="text-sm font-medium">总员工数</span>
           </div>
           <div className="text-2xl font-bold text-green-600">
-            {stats.employees_count}
+            <AnimatedCounter value={stats.employees_count} />
           </div>
         </CardContent>
       </Card>
@@ -124,7 +125,7 @@ export function SimulationStats({ stats }: SimulationStatsProps) {
             <span className="text-sm font-medium">决策总数</span>
           </div>
           <div className="text-2xl font-bold text-purple-600">
-            {stats.decisions_count}
+            <AnimatedCounter value={stats.decisions_count} />
           </div>
         </CardContent>
       </Card>
@@ -138,10 +139,14 @@ export function SimulationStats({ stats }: SimulationStatsProps) {
               <span className="text-sm font-medium">AI成本</span>
             </div>
             <div className="text-lg font-bold text-orange-600">
-              {formatCost(stats.ai_stats.total_cost)}
+              <AnimatedNumber 
+                value={stats.ai_stats.total_cost} 
+                formatValue={formatCost} 
+                decimals={4}
+              />
             </div>
             <div className="text-xs text-muted-foreground">
-              {stats.ai_stats.total_calls} 次调用
+              <AnimatedCounter value={stats.ai_stats.total_calls} suffix=" 次调用" />
             </div>
           </CardContent>
         </Card>

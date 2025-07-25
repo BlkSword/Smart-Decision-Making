@@ -13,7 +13,7 @@ from .cache_manager import cache_manager
 from .stream_manager import stream_manager
 from models.company import Company, CompanyType
 from models.employee import Employee, Role
-from models.decision import Decision, DecisionType
+from models.decision import Decision, DecisionType, DecisionStatus
 
 logger = logging.getLogger(__name__)
 
@@ -518,6 +518,10 @@ class GameEngine:
             cost=ai_response.cost
         )
         
+        # 为去中心化公司添加模拟投票
+        if company.company_type.value == 'decentralized':
+            self._simulate_voting_for_decision(decision, company)
+        
         self.decisions.append(decision)
         return decision
     
@@ -613,6 +617,54 @@ class GameEngine:
             summary += f"{i}. {decision.get('content', '无内容')}\n"
         
         return summary
+    
+    def _simulate_voting_for_decision(self, decision: Decision, company: Company):
+        """为去中心化公司的决策模拟投票过程"""
+        # 获取公司员工数量
+        company_employees = [e for e in self.employees.values() if e.company_id == company.id]
+        voter_count = len(company_employees)
+        
+        if voter_count == 0:
+            return
+        
+        # 随机生成投票结果（模拟真实投票场景）
+        import random
+        
+        # 根据决策重要性和紧急度调整投票倾向
+        base_approval_rate = 0.6  # 基础支持率60%
+        
+        # 重要决策可能获得更多支持
+        if decision.importance >= 2:
+            base_approval_rate += 0.1
+        
+        # 紧急决策可能获得更多支持
+        if decision.urgency >= 2:
+            base_approval_rate += 0.1
+        
+        # 限制支持率在合理范围内
+        base_approval_rate = max(0.3, min(0.8, base_approval_rate))
+        
+        # 随机选择3-5个员工参与投票
+        participating_voters = min(random.randint(3, 5), voter_count)
+        
+        for i in range(participating_voters):
+            # 根据支持率随机生成投票
+            if random.random() < base_approval_rate:
+                decision.add_vote(f"voter_{i}", "for")
+            elif random.random() < 0.2:  # 20%的弃权率
+                decision.add_vote(f"voter_{i}", "abstain")
+            else:
+                decision.add_vote(f"voter_{i}", "against")
+        
+        # 根据投票结果更新决策状态
+        vote_result = decision.get_vote_result()
+        if vote_result == "approved":
+            decision.status = DecisionStatus.COMPLETED
+            decision.completed_at = datetime.now()
+        elif vote_result == "rejected":
+            decision.status = DecisionStatus.REJECTED
+            decision.completed_at = datetime.now()
+        # 如果是平票，保持pending状态
     
     def _create_decision_event(self, decision: Decision, company: Company, event_type: str) -> GameEvent:
         """创建决策事件"""

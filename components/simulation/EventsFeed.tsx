@@ -18,9 +18,10 @@ interface GameEvent {
 interface EventsFeedProps {
   companyId?: string | null;
   limit?: number;
+  autoRefresh?: boolean;
 }
 
-export function EventsFeed({ companyId = null, limit = 20 }: EventsFeedProps) {
+export function EventsFeed({ companyId = null, limit = 20, autoRefresh = true }: EventsFeedProps) {
   const [events, setEvents] = useState<GameEvent[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -28,6 +29,17 @@ export function EventsFeed({ companyId = null, limit = 20 }: EventsFeedProps) {
   useEffect(() => {
     loadEvents();
   }, [companyId]);
+
+  // 自动刷新机制
+  useEffect(() => {
+    if (!autoRefresh) return;
+    
+    const interval = setInterval(() => {
+      loadEvents();
+    }, 5000); // 每5秒刷新一次
+
+    return () => clearInterval(interval);
+  }, [autoRefresh, companyId]);
 
   const loadEvents = async () => {
     try {
