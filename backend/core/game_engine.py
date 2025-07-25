@@ -47,6 +47,17 @@ class GameEvent:
     company_id: Optional[str]
     description: str
     data: Dict[str, Any]
+    
+    def to_dict(self) -> Dict[str, Any]:
+        """转换为字典格式"""
+        return {
+            "id": self.id,
+            "type": self.type,
+            "timestamp": self.timestamp.isoformat(),
+            "company_id": self.company_id,
+            "description": self.description,
+            "data": self.data
+        }
 
 class GameEngine:
     """游戏引擎核心类 - 轮次制版本"""

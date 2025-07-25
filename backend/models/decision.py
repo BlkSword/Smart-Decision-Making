@@ -52,6 +52,7 @@ class Decision:
     votes_against: int = 0
     abstentions: int = 0
     voters: Optional[List[str]] = None  # 投票员工ID列表
+    vote_details: Optional[Dict[str, str]] = None  # 投票详情 {employee_id: vote_type}
     
     # 额外数据
     metadata: Optional[Dict[str, Any]] = None
@@ -59,6 +60,8 @@ class Decision:
     def __post_init__(self):
         if self.voters is None:
             self.voters = []
+        if self.vote_details is None:
+            self.vote_details = {}
         if self.metadata is None:
             self.metadata = {}
     
@@ -68,6 +71,7 @@ class Decision:
             return False  # 已经投过票
         
         self.voters.append(employee_id)
+        self.vote_details[employee_id] = vote_type
         
         if vote_type == "for":
             self.votes_for += 1
@@ -158,6 +162,7 @@ class Decision:
             "votes_against": self.votes_against,
             "abstentions": self.abstentions,
             "voters": self.voters,
+            "vote_details": self.vote_details,
             "metadata": self.metadata,
             "vote_result": self.get_vote_result(),
             "approval_rate": self.get_approval_rate(),

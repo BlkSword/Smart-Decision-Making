@@ -13,7 +13,7 @@ from dataclasses import asdict
 # Load environment variables
 load_dotenv()
 
-from routers import companies, employees, decisions, simulation, cache, streams, cluster, monitoring, situation
+from routers import companies, employees, decisions, simulation, cache, streams, cluster, monitoring
 from core.websocket_manager import ConnectionManager
 from core.ai_client import AIClient
 from core.game_engine import GameEngine
@@ -95,7 +95,7 @@ app.include_router(cache.router, prefix="/api/cache", tags=["cache"])
 app.include_router(streams.router, prefix="/api/streams", tags=["streams"])
 app.include_router(cluster.router, prefix="/api/cluster", tags=["cluster"])
 app.include_router(monitoring.router, prefix="/api/monitoring", tags=["monitoring"])
-app.include_router(situation.router, tags=["situation"])
+# situation路由已移除
 
 @app.get("/")
 async def root():

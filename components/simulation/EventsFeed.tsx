@@ -111,22 +111,7 @@ export function EventsFeed({ companyId = null, limit = 20, autoRefresh = true }:
     return colors[type] || 'bg-gray-100 text-gray-800';
   };
 
-  const formatDateTime = (dateString: string) => {
-    const date = new Date(dateString);
-    const now = new Date();
-    const diffMs = now.getTime() - date.getTime();
-    const diffMins = Math.floor(diffMs / 60000);
 
-    if (diffMins < 1) {
-      return '刚刚';
-    } else if (diffMins < 60) {
-      return `${diffMins} 分钟前`;
-    } else if (diffMins < 1440) {
-      return `${Math.floor(diffMins / 60)} 小时前`;
-    } else {
-      return date.toLocaleDateString('zh-CN');
-    }
-  };
 
   const formatEventData = (event: GameEvent) => {
     switch (event.type) {
@@ -206,9 +191,6 @@ export function EventsFeed({ companyId = null, limit = 20, autoRefresh = true }:
                     >
                       {getEventTypeLabel(event.type)}
                     </Badge>
-                    <span className="text-xs text-muted-foreground">
-                      {formatDateTime(event.timestamp)}
-                    </span>
                   </div>
                   
                   <p className="text-sm text-foreground mb-1">

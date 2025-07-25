@@ -44,6 +44,18 @@ interface DecisionData {
   ai_provider: string | null;
   ai_model: string | null;
   cost: number;
+  status: string;
+  importance: number;
+  urgency: number;
+  impact_score: number | null;
+  votes_for: number;
+  votes_against: number;
+  abstentions: number;
+  vote_result: string;
+  approval_rate: number;
+  started_at: string | null;
+  completed_at: string | null;
+  outcome: string | null;
 }
 
 interface AILogPanelProps {
@@ -55,6 +67,8 @@ export const AILogPanel: React.FC<AILogPanelProps> = ({ companyId }) => {
   const [filteredLogs, setFilteredLogs] = useState<AILogEntry[]>([]);
   const [filter, setFilter] = useState<'all' | 'success' | 'failed' | 'pending'>('all');
   const [autoScroll, setAutoScroll] = useState(true);
+  // 投票模态框相关状态已移除
+  const [decisionsData, setDecisionsData] = useState<DecisionData[]>([]);
   const scrollRef = useRef<HTMLDivElement>(null);
 
   // 获取真实决策数据
@@ -64,7 +78,7 @@ export const AILogPanel: React.FC<AILogPanelProps> = ({ companyId }) => {
       if (companyId) {
         params.append('company_id', companyId);
       }
-      params.append('limit', '50');
+      params.append('limit', '500'); // 增加上限到500条记录
       
       const response = await fetch(`/api/simulation/decisions?${params}`);
       if (response.ok) {
@@ -103,12 +117,15 @@ export const AILogPanel: React.FC<AILogPanelProps> = ({ companyId }) => {
       status: hasAIProvider ? 'success' : 'failed'
     };
   };
+  
+  // 双击事件处理程序已移除
 
   // 定时获取真实决策数据
   useEffect(() => {
     // 初始加载数据
     const loadDecisions = async () => {
       const decisions = await fetchDecisions();
+      setDecisionsData(decisions); // 保存原始决策数据
       const logEntries = decisions.map(convertDecisionToLog);
       // 按时间排序，最新的在上面
       logEntries.sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
@@ -192,6 +209,34 @@ export const AILogPanel: React.FC<AILogPanelProps> = ({ companyId }) => {
       minute: '2-digit',
       second: '2-digit'
     });
+  };
+  
+  // 获取投票结果显示文本
+  const getVoteResultText = (voteResult: string) => {
+    switch (voteResult) {
+      case 'approved':
+        return '通过';
+      case 'rejected':
+        return '被拒绝';
+      case 'no_votes':
+        return '无投票';
+      default:
+        return voteResult;
+    }
+  };
+  
+  // 获取投票结果颜色
+  const getVoteResultColor = (voteResult: string) => {
+    switch (voteResult) {
+      case 'approved':
+        return 'text-green-600';
+      case 'rejected':
+        return 'text-red-600';
+      case 'no_votes':
+        return 'text-gray-600';
+      default:
+        return 'text-gray-600';
+    }
   };
 
   return (
@@ -326,6 +371,26 @@ export const AILogPanel: React.FC<AILogPanelProps> = ({ companyId }) => {
                       </div>
                     )}
                     
+                    {/* 投票信息 */}
+                    {(() => {
+                      const decision = decisionsData.find(d => d.id === log.id);
+                      if (decision && decision.decision_type === 'collaborative') {
+                        return (
+                          <div className="mb-2 p-2 bg-gray-50 rounded">
+                            <div className="flex items-center gap-4 text-xs">
+                              <span className="text-green-600">支持: {decision.votes_for}</span>
+                              <span className="text-red-600">反对: {decision.votes_against}</span>
+                              <span className="text-gray-600">弃权: {decision.abstentions}</span>
+                              <span className={`font-bold ${getVoteResultColor(decision.vote_result)}`}>
+                                {getVoteResultText(decision.vote_result)}
+                              </span>
+                            </div>
+                          </div>
+                        );
+                      }
+                      return null;
+                    })()}
+                    
                     <div className="flex items-center justify-between text-xs text-muted-foreground">
                       <div className="flex items-center gap-4">
                         <span>模型: {log.model}</span>
@@ -349,6 +414,8 @@ export const AILogPanel: React.FC<AILogPanelProps> = ({ companyId }) => {
           </div>
         </ScrollArea>
       </CardContent>
+      
+      {/* 投票详情模态框已移除 */}
     </Card>
   );
 };

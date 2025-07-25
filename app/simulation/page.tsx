@@ -10,11 +10,12 @@ import { DecisionPanel } from '@/components/simulation/DecisionPanel';
 import { EventsFeed } from '@/components/simulation/EventsFeed';
 import { SimulationStats } from '@/components/simulation/SimulationStats';
 import { AILogPanel } from '@/components/simulation/AILogPanel';
+import { EventGraph } from '@/components/simulation/EventGraph';
 import { CreateCompanyModal } from '@/components/simulation/CreateCompanyModal';
 import { CompanyDetailsModal } from '@/components/simulation/CompanyDetailsModal';
 import { WebSocketConnection } from '@/lib/websocket';
-import { Play, Pause, Square, Settings, Plus, Network, RefreshCw, Clock } from 'lucide-react';
-import Link from 'next/link';
+import { Play, Pause, Square, Settings, Plus, RefreshCw, Clock } from 'lucide-react';
+// Link 导入已移除
 
 interface Company {
   id: string;
@@ -359,12 +360,7 @@ export default function SimulationPage() {
             </>
           )}
           
-          <Link href="/situation">
-            <Button size="sm" variant="secondary">
-              <Network className="h-4 w-4 mr-1" />
-              时间线
-            </Button>
-          </Link>
+          {/* 时间线按钮已移除 */}
           
           <Button
             onClick={() => loadSimulationData(false, true)}
@@ -492,9 +488,7 @@ export default function SimulationPage() {
       )}
 
       {/* 统计信息 */}
-      {simulationStatus && (
-        <SimulationStats stats={simulationStatus} />
-      )}
+      <SimulationStats stats={simulationStatus} autoRefresh={true} />
 
       {/* 主要内容区域 */}
       <div 
@@ -568,6 +562,16 @@ export default function SimulationPage() {
         >
           <AILogPanel companyId={selectedCompany} />
         </div>
+      </div>
+      
+      {/* 实时事件图 */}
+      <div className="mt-8">
+        <EventGraph 
+          companyId={selectedCompany} 
+          autoUpdate={true} 
+          showControls={true} 
+          height={500}
+        />
       </div>
       
       {/* 模态框 */}

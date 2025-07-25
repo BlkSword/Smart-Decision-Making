@@ -189,6 +189,8 @@ async def get_recent_decisions(
                 "abstentions": d.abstentions,
                 "vote_result": d.get_vote_result(),
                 "approval_rate": d.get_approval_rate(),
+                "voters": d.voters if d.voters else [],
+                "vote_details": d.vote_details if hasattr(d, 'vote_details') and d.vote_details else {},
                 # 时间相关字段
                 "started_at": d.started_at.isoformat() if d.started_at else None,
                 "completed_at": d.completed_at.isoformat() if d.completed_at else None,
