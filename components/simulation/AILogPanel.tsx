@@ -81,6 +81,9 @@ export const AILogPanel: React.FC<AILogPanelProps> = ({ companyId }) => {
   const convertDecisionToLog = (decision: DecisionData): AILogEntry => {
     const hasAIProvider = decision.ai_provider && decision.ai_provider !== null;
     
+    // 生成提示词内容
+    const prompt = `为${decision.company_name}的${decision.employee_role}${decision.employee_name}生成${decision.decision_type}类型的决策内容`;
+    
     return {
       id: decision.id,
       timestamp: decision.created_at,
@@ -91,6 +94,7 @@ export const AILogPanel: React.FC<AILogPanelProps> = ({ companyId }) => {
       employee_name: decision.employee_name,
       employee_role: decision.employee_role,
       request_type: decision.decision_type,
+      prompt: prompt,
       response: hasAIProvider ? decision.content : undefined,
       error: hasAIProvider ? undefined : decision.content,
       model: decision.ai_model || 'unknown',
@@ -106,6 +110,8 @@ export const AILogPanel: React.FC<AILogPanelProps> = ({ companyId }) => {
     const loadDecisions = async () => {
       const decisions = await fetchDecisions();
       const logEntries = decisions.map(convertDecisionToLog);
+      // 按时间排序，最新的在上面
+      logEntries.sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
       setLogs(logEntries);
     };
     
@@ -269,7 +275,7 @@ export const AILogPanel: React.FC<AILogPanelProps> = ({ companyId }) => {
                       <span className="font-medium text-sm">
                         {log.company_name} - {log.employee_name}
                       </span>
-                      <Badge variant="outline" className="text-xs">
+                      <Badge variant="secondary" className="text-xs text-gray-700 bg-gray-200">
                         {log.employee_role}
                       </Badge>
                     </div>

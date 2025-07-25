@@ -47,6 +47,8 @@ export default function SimulationPage() {
   const [selectedCompany, setSelectedCompany] = useState<string | null>(null);
   const [wsConnection, setWsConnection] = useState<WebSocketConnection | null>(null);
   const [loading, setLoading] = useState(true);
+  const [initialLoading, setInitialLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [showDetailsModal, setShowDetailsModal] = useState(false);
@@ -75,15 +77,13 @@ export default function SimulationPage() {
           // 处理游戏事件
           if (data.channel === 'game_events') {
             console.log('Game event received, refreshing data...');
-            loadSimulationData();
-            setLastUpdateTime(Date.now());
+            loadSimulationData(false, false);
           }
           
           // 处理数据变化通知
           if (data.channel === 'data_changed') {
             console.log('Data changed event received, refreshing data...');
-            loadSimulationData();
-            setLastUpdateTime(Date.now());
+            loadSimulationData(false, false);
           }
         }
         
@@ -150,9 +150,14 @@ export default function SimulationPage() {
   }, []);
 
   // 加载模拟数据
-  const loadSimulationData = async () => {
+  const loadSimulationData = async (isInitial = false, isRefresh = false) => {
     try {
-      setLoading(true);
+      if (isInitial) {
+        setInitialLoading(true);
+        setLoading(true);
+      } else if (isRefresh) {
+        setRefreshing(true);
+      }
       
       // 获取公司列表
       const companiesResponse = await fetch('/api/companies');
@@ -169,17 +174,23 @@ export default function SimulationPage() {
       }
 
       setError(null);
+      setLastUpdateTime(Date.now());
     } catch (err) {
       setError('Failed to load simulation data');
       console.error('Error loading simulation data:', err);
     } finally {
-      setLoading(false);
+      if (isInitial) {
+        setInitialLoading(false);
+        setLoading(false);
+      } else if (isRefresh) {
+        setRefreshing(false);
+      }
     }
   };
 
   // 初始加载数据
   useEffect(() => {
-    loadSimulationData();
+    loadSimulationData(true, false);
   }, []);
 
   // 移除了自动刷新功能 - 改为纯事件驱动更新
@@ -192,7 +203,7 @@ export default function SimulationPage() {
       });
       
       if (response.ok) {
-        await loadSimulationData();
+        await loadSimulationData(false, false);
       } else {
         const errorData = await response.json();
         setError(errorData.detail || `Failed to ${action} simulation`);
@@ -211,7 +222,7 @@ export default function SimulationPage() {
       });
       
       if (response.ok) {
-        await loadSimulationData();
+        await loadSimulationData(false, false);
       } else {
         const errorData = await response.json();
         setError(errorData.detail || 'Failed to execute round');
@@ -235,7 +246,7 @@ export default function SimulationPage() {
       });
       
       if (response.ok) {
-        await loadSimulationData();
+        await loadSimulationData(false, false);
       } else {
         const errorData = await response.json();
         setError(errorData.detail || 'Failed to change mode');
@@ -254,7 +265,7 @@ export default function SimulationPage() {
       });
       
       if (response.ok) {
-        await loadSimulationData();
+        await loadSimulationData(false, false);
         setShowResetConfirm(false);
       } else {
         const errorData = await response.json();
@@ -274,7 +285,7 @@ export default function SimulationPage() {
 
   // 处理创建公司成功
   const handleCreateSuccess = () => {
-    loadSimulationData();
+    loadSimulationData(false, false);
   };
 
   // 处理关闭详情模态框
@@ -291,14 +302,31 @@ export default function SimulationPage() {
     }
   };
 
-  if (loading) {
-    return (
-      <div className="container mx-auto p-6">
-        <div className="flex items-center justify-center h-64">
-          <div className="text-lg">Loading simulation...</div>
+  // 加载动画组件
+  const LoadingAnimation = () => (
+    <div className="container mx-auto p-6">
+      <div className="flex flex-col items-center justify-center h-64 space-y-4">
+        <div className="relative">
+          <div className="w-16 h-16 border-4 border-blue-200 border-t-blue-600 rounded-full animate-spin"></div>
+          <div className="absolute inset-0 flex items-center justify-center">
+            <div className="w-8 h-8 bg-blue-600 rounded-full animate-pulse"></div>
+          </div>
+        </div>
+        <div className="text-center">
+          <div className="text-lg font-semibold text-gray-700 mb-2">AI商战模拟初始化中</div>
+          <div className="text-sm text-gray-500 animate-pulse">正在加载系统数据...</div>
+        </div>
+        <div className="flex space-x-1">
+          <div className="w-2 h-2 bg-blue-600 rounded-full animate-bounce"></div>
+          <div className="w-2 h-2 bg-blue-600 rounded-full animate-bounce" style={{animationDelay: '0.1s'}}></div>
+          <div className="w-2 h-2 bg-blue-600 rounded-full animate-bounce" style={{animationDelay: '0.2s'}}></div>
         </div>
       </div>
-    );
+    </div>
+  );
+
+  if (initialLoading) {
+    return <LoadingAnimation />;
   }
 
   return (
@@ -309,9 +337,9 @@ export default function SimulationPage() {
       {/* 头部控制区 */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-3xl font-bold">AI商战模拟系统</h1>
+          <h1 className="text-3xl font-bold">AI商战模拟</h1>
           <p className="text-muted-foreground">
-            轮次制AI商战模拟 - 观察集权与去中心化公司的决策差异
+            观察集权与去中心化公司的决策差异
           </p>
         </div>
         
@@ -339,12 +367,13 @@ export default function SimulationPage() {
           </Link>
           
           <Button
-            onClick={() => loadSimulationData()}
+            onClick={() => loadSimulationData(false, true)}
             size="sm"
             variant="outline"
+            disabled={refreshing}
           >
-            <RefreshCw className="h-4 w-4 mr-1" />
-            手动刷新
+            <RefreshCw className={`h-4 w-4 mr-1 ${refreshing ? 'animate-spin' : ''}`} />
+            {refreshing ? '刷新中...' : '手动刷新'}
           </Button>
           
           <div className="flex items-center space-x-1 text-sm text-muted-foreground">
