@@ -233,18 +233,15 @@ export default function SimulationPage() {
       // 特殊处理end操作
       if (action === 'end') {
         setSummaryLoading(true);
-        const response = await fetch('/api/simulation/stop', {
+        const response = await fetch('http://localhost:8000/api/simulation/end', {
           method: 'POST',
         });
 
         if (response.ok) {
           // 获取游戏总结数据
-          const statsResponse = await fetch('/api/simulation/stats');
-          if (statsResponse.ok) {
-            const statsData = await statsResponse.json();
-            setGameSummary(statsData);
-            setShowGameSummary(true);
-          }
+          const statsData = await response.json();
+          setGameSummary(statsData);
+          setShowGameSummary(true);
           await loadSimulationData(false, false);
         } else {
           const errorData = await response.json();
@@ -364,18 +361,6 @@ export default function SimulationPage() {
       <div className="flex flex-col items-center justify-center h-64 space-y-4">
         <div className="relative">
           <div className="w-16 h-16 border-4 border-blue-200 border-t-blue-600 rounded-full animate-spin"></div>
-          <div className="absolute inset-0 flex items-center justify-center">
-            <div className="w-8 h-8 bg-blue-600 rounded-full animate-pulse"></div>
-          </div>
-        </div>
-        <div className="text-center">
-          <div className="text-lg font-semibold text-gray-700 mb-2">AI商战模拟初始化中</div>
-          <div className="text-sm text-gray-500 animate-pulse">正在加载系统数据...</div>
-        </div>
-        <div className="flex space-x-1">
-          <div className="w-2 h-2 bg-blue-600 rounded-full animate-bounce"></div>
-          <div className="w-2 h-2 bg-blue-600 rounded-full animate-bounce" style={{ animationDelay: '0.1s' }}></div>
-          <div className="w-2 h-2 bg-blue-600 rounded-full animate-bounce" style={{ animationDelay: '0.2s' }}></div>
         </div>
       </div>
     </div>
@@ -398,7 +383,7 @@ export default function SimulationPage() {
               本轮游戏已完成，以下是详细统计数据
             </DialogDescription>
           </DialogHeader>
-          
+
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 py-4">
             <Card>
               <CardContent className="p-4">
@@ -406,35 +391,35 @@ export default function SimulationPage() {
                 <div className="text-2xl font-bold">{gameSummary.total_rounds}</div>
               </CardContent>
             </Card>
-            
+
             <Card>
               <CardContent className="p-4">
                 <div className="text-sm text-gray-500 mb-1">参与公司</div>
                 <div className="text-2xl font-bold">{gameSummary.total_companies}</div>
               </CardContent>
             </Card>
-            
+
             <Card>
               <CardContent className="p-4">
                 <div className="text-sm text-gray-500 mb-1">员工总数</div>
                 <div className="text-2xl font-bold">{gameSummary.total_employees}</div>
               </CardContent>
             </Card>
-            
+
             <Card>
               <CardContent className="p-4">
                 <div className="text-sm text-gray-500 mb-1">决策总数</div>
                 <div className="text-2xl font-bold">{gameSummary.total_decisions}</div>
               </CardContent>
             </Card>
-            
+
             <Card>
               <CardContent className="p-4">
                 <div className="text-sm text-gray-500 mb-1">AI调用次数</div>
                 <div className="text-2xl font-bold">{gameSummary.ai_calls}</div>
               </CardContent>
             </Card>
-            
+
             <Card>
               <CardContent className="p-4">
                 <div className="text-sm text-gray-500 mb-1">AI总费用</div>
@@ -442,7 +427,7 @@ export default function SimulationPage() {
               </CardContent>
             </Card>
           </div>
-          
+
           <div className="py-2">
             <h3 className="text-lg font-semibold mb-2">公司详情</h3>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -460,7 +445,7 @@ export default function SimulationPage() {
                         {company.is_active ? '活跃' : '非活跃'}
                       </Badge>
                     </div>
-                    
+
                     <div className="mt-3 grid grid-cols-2 gap-2 text-sm">
                       <div>
                         <span className="text-gray-500">资金:</span>
@@ -484,7 +469,7 @@ export default function SimulationPage() {
               ))}
             </div>
           </div>
-          
+
           <DialogFooter>
             <Button onClick={() => setShowGameSummary(false)}>关闭</Button>
           </DialogFooter>
@@ -578,13 +563,13 @@ export default function SimulationPage() {
               </>
             ) : (
               <>
-                <Play className="h-4 w-4 mr-1" />
-                继续
+                <Pause className="h-4 w-4 mr-1" />
+                暂停
               </>
             )}
           </Button>
 
-          <Button
+          {/* <Button
             onClick={() => controlSimulation('stop')}
             disabled={simulationStatus?.status === 'stopped'}
             size="sm"
@@ -592,7 +577,7 @@ export default function SimulationPage() {
           >
             <Square className="h-4 w-4 mr-1" />
             停止
-          </Button>
+          </Button> */}
 
           {/* 手动轮次控制按钮 */}
           {simulationStatus?.mode === 'manual' && (
@@ -614,19 +599,9 @@ export default function SimulationPage() {
               size="sm"
               variant="outline"
             >
-              <Play className="h-4 w-4 mr-1" />
               手动轮次
             </Button>
           )}
-
-          <Button
-            onClick={toggleGameMode}
-            disabled={simulationStatus?.status === 'stopped'}
-            size="sm"
-            variant="outline"
-          >
-            {simulationStatus?.mode === 'auto' ? '切换到手动' : '切换到自动'}
-          </Button>
 
           <Button
             onClick={() => setShowResetConfirm(true)}
@@ -642,7 +617,6 @@ export default function SimulationPage() {
             size="sm"
             variant="outline"
           >
-            <Square className="h-4 w-4 mr-1" />
             {summaryLoading ? '结束中...' : '结束'}
           </Button>
 

@@ -428,3 +428,49 @@ async def trigger_custom_event(
             "data": event.data
         }
     }
+
+@router.post("/end")
+async def end_simulation():
+    """结束模拟并生成统计数据"""
+    engine = get_game_engine()
+    
+    # 停止模拟
+    engine.stop()
+    
+    # 获取统计数据
+    stats = engine.get_game_stats()
+    
+    # 添加更详细的统计信息
+    companies = engine.get_companies()
+    company_stats = {}
+    
+    for company in companies:
+        employees = [e for e in engine.get_employees() if e.company_id == company.id]
+        decisions = [d for d in engine.get_recent_decisions(1000) if d.company_id == company.id]
+        events = [e for e in engine.get_recent_events(1000) if e.company_id == company.id]
+        
+        company_stats[company.id] = {
+            "name": company.name,
+            "type": company.company_type.value,
+            "funds": company.funds,
+            "employees_count": len(employees),
+            "decisions_count": len(decisions),
+            "events_count": len(events),
+            "avg_employee_level": sum(e.level for e in employees) / len(employees) if employees else 0,
+            "total_experience": sum(e.experience for e in employees),
+            "is_active": company.is_active
+        }
+    
+    stats["companies"] = company_stats
+    
+    # 返回游戏总结数据
+    return {
+        "total_rounds": stats["current_round"],
+        "total_companies": stats["companies_count"],
+        "total_employees": stats["employees_count"],
+        "total_decisions": stats["decisions_count"],
+        "total_events": stats["events_count"],
+        "ai_cost": stats["ai_stats"]["total_cost"] if stats["ai_stats"] else 0,
+        "ai_calls": stats["ai_stats"]["total_calls"] if stats["ai_stats"] else 0,
+        "companies": company_stats
+    }

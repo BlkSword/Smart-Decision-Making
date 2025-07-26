@@ -419,9 +419,6 @@ export const EventGraph: React.FC<EventGraphProps> = ({
               <Activity className="h-5 w-5" />
               公司事件进度视图
             </CardTitle>
-            <CardDescription>
-              拖动查看、缩放交互的公司事件与决策进度展示
-            </CardDescription>
           </div>
 
           {showControls && (

@@ -35,12 +35,12 @@ function UserMenu() {
   if (!user) {
     return (
       <div className="flex items-center space-x-4">
-        <Button asChild variant="outline" className="rounded-full">
+        {/* <Button asChild variant="outline" className="rounded-full">
           <Link href="/sign-in">Sign In</Link>
         </Button>
         <Button asChild className="rounded-full">
           <Link href="/sign-up">Sign Up</Link>
-        </Button>
+        </Button> */}
       </div>
     );
   }
