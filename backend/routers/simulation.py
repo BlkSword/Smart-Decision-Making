@@ -1,6 +1,7 @@
 from fastapi import APIRouter, HTTPException
 from typing import Dict, Any, List
 from datetime import datetime
+from core.game_engine import GameState, GameMode
 
 router = APIRouter()
 
@@ -32,19 +33,13 @@ async def start_simulation():
     """启动模拟"""
     engine = get_game_engine()
     
-    if engine.state.value == "running":
+    if engine.state == GameState.RUNNING:
         return {"message": "Simulation is already running"}
     
-    # 如果是第一次启动游戏
-    if engine.current_round == 0:
-        # 重新初始化游戏并开始
-        await engine.initialize(auto_start=True)
-    else:
-        # 如果是恢复已停止的游戏
-        engine.state = GameState.RUNNING
-        # 如果是自动模式，启动自动轮次
-        if engine.mode == GameMode.AUTO:
-            asyncio.create_task(engine.start_auto_rounds())
+    engine.state = GameState.RUNNING
+    if engine.mode == GameMode.AUTO:
+        import asyncio
+        asyncio.create_task(engine.start_auto_rounds())
     
     return {
         "message": "Simulation started successfully",
@@ -58,7 +53,7 @@ async def pause_simulation():
     """暂停模拟"""
     engine = get_game_engine()
     
-    if engine.state.value != "running":
+    if engine.state != GameState.RUNNING:
         raise HTTPException(status_code=400, detail="Simulation is not running")
     
     engine.pause()
@@ -73,7 +68,7 @@ async def resume_simulation():
     """恢复模拟"""
     engine = get_game_engine()
     
-    if engine.state.value != "paused":
+    if engine.state != GameState.PAUSED:
         raise HTTPException(status_code=400, detail="Simulation is not paused")
     
     engine.resume()
@@ -100,59 +95,37 @@ async def manual_round():
     """手动执行一轮模拟"""
     engine = get_game_engine()
     
-    if engine.state.value != "running":
+    if engine.state != GameState.RUNNING and engine.state != GameState.PAUSED:
         raise HTTPException(status_code=400, detail="Simulation is not running")
     
     events = await engine.execute_round()
     
     return {
-        "message": f"Round {engine.current_round} executed",
-        "round": engine.current_round,
-        "events_generated": len(events),
-        "events": [{
-            "id": event.id,
-            "type": event.type,
-            "timestamp": event.timestamp.isoformat(),
-            "company_id": event.company_id,
-            "description": event.description,
-            "data": event.data
-        } for event in events]
-    }
-
-@router.post("/mode")
-async def set_game_mode(request: Dict[str, Any]):
-    """设置游戏模式"""
-    engine = get_game_engine()
-    
-    from core.game_engine import GameMode
-    
-    mode = request.get("mode")
-    if not mode or mode not in ["auto", "manual"]:
-        raise HTTPException(status_code=400, detail="Invalid game mode. Use 'auto' or 'manual'")
-    
-    new_mode = GameMode.AUTO if mode == "auto" else GameMode.MANUAL
-    await engine.set_mode(new_mode)
-    
-    return {
-        "message": f"Game mode set to {mode}",
-        "mode": engine.mode.value,
-        "status": engine.state.value
+        "message": "Round executed successfully",
+        "events_count": len(events),
+        "current_round": engine.current_round
     }
 
 @router.post("/reset")
-async def reset_game():
-    """重置游戏"""
+async def reset_simulation():
+    """重置模拟"""
     engine = get_game_engine()
     
     await engine.reset_game()
     
     return {
-        "message": "Game reset successfully",
-        "status": engine.state.value,
-        "mode": engine.mode.value,
-        "current_round": engine.current_round,
-        "companies_count": len(engine.companies),
-        "employees_count": len(engine.employees)
+        "message": "Simulation reset successfully",
+        "status": engine.state.value
+    }
+
+@router.get("/events")
+async def get_simulation_events(limit: int = 50):
+    """获取模拟事件"""
+    engine = get_game_engine()
+    
+    events = engine.get_recent_events(limit)
+    return {
+        "events": [event.to_dict() for event in events]
     }
 
 @router.get("/decisions")
@@ -178,7 +151,7 @@ async def get_recent_decisions(
             {
                 "id": d.id,
                 "company_id": d.company_id,
-                "company_name": companies.get(d.company_id, {}).name if companies.get(d.company_id) else "Unknown Company",
+                "company_name": companies.get(d.company_id, {}).name if companies.get(d.company_id) and companies.get(d.company_id).name else "Unknown Company",
                 "employee_id": d.employee_id,
                 "employee_name": employees.get(d.employee_id, {}).name if employees.get(d.employee_id) else "Unknown Employee",
                 "employee_role": employees.get(d.employee_id, {}).role.value if employees.get(d.employee_id) else "Unknown Role",
@@ -215,80 +188,62 @@ async def get_recent_decisions(
         "total_decisions": len(decisions)
     }
 
-@router.get("/events")
-async def get_recent_events(
-    company_id: str = None,
-    limit: int = 100,
-    event_type: str = None
-):
-    """获取最近的游戏事件"""
+@router.post("/mode")
+async def set_simulation_mode(mode: str):
+    """设置模拟模式"""
     engine = get_game_engine()
     
-    events = engine.get_recent_events(limit)
+    if mode not in ["auto", "manual"]:
+        raise HTTPException(status_code=400, detail="Mode must be 'auto' or 'manual'")
     
-    # 过滤公司ID
-    if company_id:
-        events = [e for e in events if e.company_id == company_id]
-    
-    # 过滤事件类型
-    if event_type:
-        events = [e for e in events if e.type == event_type]
+    await engine.set_mode(GameMode(mode))
     
     return {
-        "events": [
-            {
-                "id": e.id,
-                "type": e.type,
-                "timestamp": e.timestamp.isoformat(),
-                "company_id": e.company_id,
-                "description": e.description,
-                "data": e.data
-            }
-            for e in events
-        ],
-        "total_events": len(events)
+        "message": f"Simulation mode set to {mode}",
+        "mode": engine.mode.value
     }
 
 @router.get("/stats")
 async def get_simulation_stats():
     """获取模拟统计信息"""
     engine = get_game_engine()
-    
-    stats = engine.get_game_stats()
-    
-    # 添加更详细的统计信息
+    return engine.get_game_stats()
+
+@router.get("/companies")
+async def get_simulation_companies():
+    """获取所有公司信息"""
+    engine = get_game_engine()
     companies = engine.get_companies()
-    company_stats = {}
     
-    for company in companies:
-        employees = [e for e in engine.get_employees() if e.company_id == company.id]
-        decisions = [d for d in engine.get_recent_decisions(1000) if d.company_id == company.id]  # 获取所有决策
-        events = [e for e in engine.get_recent_events(1000) if e.company_id == company.id]  # 获取所有事件
-        
-        company_stats[company.id] = {
-            "name": company.name,
-            "type": company.company_type.value,
-            "funds": company.funds,
-            "employees_count": len(employees),
-            "decisions_count": len(decisions),
-            "events_count": len(events),
-            "avg_employee_level": sum(e.level for e in employees) / len(employees) if employees else 0,
-            "total_experience": sum(e.experience for e in employees),
-            "is_active": company.is_active
-        }
-    
-    stats["companies"] = company_stats
-    
-    # 返回游戏总结数据
     return {
-        "total_rounds": stats["current_round"],
-        "total_companies": stats["companies_count"],
-        "total_employees": stats["employees_count"],
-        "total_decisions": stats["decisions_count"],
-        "total_events": stats["events_count"],
-        "ai_cost": stats["ai_stats"]["total_cost"] if stats["ai_stats"] else 0,
-        "ai_calls": stats["ai_stats"]["total_calls"] if stats["ai_stats"] else 0,
-        "companies": company_stats
+        "companies": [{
+            "id": c.id,
+            "name": c.name,
+            "company_type": c.company_type.value,
+            "funds": c.funds,
+            "size": c.size,
+            "is_active": c.is_active,
+            "created_at": c.created_at.isoformat() if c.created_at else None
+        } for c in companies]
+    }
+
+@router.get("/employees")
+async def get_simulation_employees(company_id: str = None):
+    """获取员工信息"""
+    engine = get_game_engine()
+    employees = engine.get_employees(company_id)
+    
+    return {
+        "employees": [{
+            "id": e.id,
+            "company_id": e.company_id,
+            "name": e.name,
+            "role": e.role.value,
+            "level": e.level,
+            "experience": e.experience,
+            "ai_personality": getattr(e, 'ai_personality', None),
+            "decision_style": getattr(e, 'decision_style', None)
+        } for e in employees]
     }
 
 @router.put("/config")

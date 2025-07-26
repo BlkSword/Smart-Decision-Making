@@ -16,10 +16,9 @@ import { useTheme, themeColors, type ThemeColor } from '@/contexts/theme-context
 export default function ThemeControls() {
   const [isOpen, setIsOpen] = useState(false);
   const [mounted, setMounted] = useState(false);
-  
-  // Theme context variables
+
   let mode, themeColor, toggleMode, setThemeColor;
-  
+
   try {
     const themeContext = useTheme();
     mode = themeContext.mode;
@@ -27,18 +26,16 @@ export default function ThemeControls() {
     toggleMode = themeContext.toggleMode;
     setThemeColor = themeContext.setThemeColor;
   } catch (error) {
-    // If theme context is not available, use defaults
     mode = 'light';
     themeColor = themeColors[0];
-    toggleMode = () => {};
-    setThemeColor = () => {};
+    toggleMode = () => { };
+    setThemeColor = () => { };
   }
 
   useEffect(() => {
     setMounted(true);
   }, []);
 
-  // Don't render anything until mounted to avoid hydration mismatch
   if (!mounted) {
     return <div className="flex items-center space-x-2 h-9 w-18" />;
   }
@@ -50,7 +47,6 @@ export default function ThemeControls() {
 
   return (
     <div className="flex items-center space-x-2">
-      {/* Theme Mode Toggle */}
       <Button
         variant="outline"
         size="sm"
@@ -65,7 +61,6 @@ export default function ThemeControls() {
         )}
       </Button>
 
-      {/* Theme Color Picker */}
       <DropdownMenu open={isOpen} onOpenChange={setIsOpen}>
         <DropdownMenuTrigger asChild>
           <Button
@@ -85,9 +80,9 @@ export default function ThemeControls() {
               onClick={() => handleColorChange(color)}
             >
               <div className="flex items-center space-x-2">
-                <div 
+                <div
                   className="w-4 h-4 rounded-full border border-gray-300"
-                  style={{ 
+                  style={{
                     backgroundColor: `hsl(${color.primary})`,
                   }}
                 />

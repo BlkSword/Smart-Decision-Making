@@ -6,9 +6,9 @@ import { Button } from '@/components/ui/button';
 import { CircleIcon, LogOut, User as UserIcon } from 'lucide-react';
 import {
   DropdownMenu,
+  DropdownMenuTrigger,
   DropdownMenuContent,
   DropdownMenuItem,
-  DropdownMenuTrigger,
   DropdownMenuSeparator
 } from '@/components/ui/dropdown-menu';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
@@ -18,6 +18,7 @@ import { User } from '@/lib/db/schema';
 import useSWR, { mutate } from 'swr';
 import ThemeControls from './theme-controls';
 import { siteConfig } from '@/lib/config';
+import Image from 'next/image';
 
 const fetcher = (url: string) => fetch(url).then((res) => res.json());
 
@@ -84,8 +85,14 @@ export default function Header() {
     <header className="border-b border-border bg-background">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4 flex justify-between items-center">
         <Link href="/" className="flex items-center">
-          <CircleIcon className="h-6 w-6 text-primary" />
-          <span className="ml-2 text-xl font-semibold text-foreground">{siteConfig.name}</span>
+          <Image
+            src="/23c856eec2827f9ea02d7ceb66061ae.png"
+            alt={siteConfig.name}
+            width={40}
+            height={40}
+            className="mr-2"
+          />
+          <span className="text-xl font-semibold text-foreground">{siteConfig.name}</span>
         </Link>
         <div className="flex items-center space-x-4">
           <ThemeControls />

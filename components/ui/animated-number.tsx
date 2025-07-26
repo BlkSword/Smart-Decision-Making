@@ -29,7 +29,19 @@ export function AnimatedNumber({
   const startValueRef = useRef<number>(value);
 
   useEffect(() => {
-    if (value === displayValue) return;
+    // 添加数值边界检查，防止异常值
+    if (!isFinite(value) || isNaN(value)) {
+      console.warn('Invalid value passed to AnimatedNumber:', value);
+      return;
+    }
+
+    // 限制数值范围，防止过大或过小的值导致显示异常
+    const clampedValue = Math.max(-Number.MAX_SAFE_INTEGER, Math.min(Number.MAX_SAFE_INTEGER, value));
+    if (clampedValue !== value) {
+      console.warn('Value clamped in AnimatedNumber:', value, '->', clampedValue);
+    }
+
+    if (clampedValue === displayValue) return;
 
     setIsAnimating(true);
     startValueRef.current = displayValue;
@@ -44,13 +56,13 @@ export function AnimatedNumber({
       // 使用 easeOutQuart 缓动函数
       const easeOutQuart = 1 - Math.pow(1 - progress, 4);
 
-      const currentValue = startValueRef.current + (value - startValueRef.current) * easeOutQuart;
+      const currentValue = startValueRef.current + (clampedValue - startValueRef.current) * easeOutQuart;
       setDisplayValue(currentValue);
 
       if (progress < 1) {
         frameRef.current = requestAnimationFrame(animate);
       } else {
-        setDisplayValue(value);
+        setDisplayValue(clampedValue);
         setIsAnimating(false);
       }
     };
@@ -64,9 +76,12 @@ export function AnimatedNumber({
     };
   }, [value, duration, displayValue]);
 
+  // 添加数值有效性检查
+  const validDisplayValue = isFinite(displayValue) && !isNaN(displayValue) ? displayValue : 0;
+  
   const formattedValue = formatValue
-    ? formatValue(displayValue)
-    : `${prefix}${displayValue.toFixed(decimals)}${suffix}`;
+    ? formatValue(validDisplayValue)
+    : `${prefix}${validDisplayValue.toFixed(decimals)}${suffix}`;
 
   return (
     <span

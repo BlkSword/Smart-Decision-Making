@@ -1,5 +1,5 @@
 export const siteConfig = {
-  name: "AI商战模拟系统",
-  title: "AI Business War Simulation System", 
-  description: "基于AI的商业竞争模拟平台，支持集权和去中心化公司的智能决策对抗"
+  name: "智慧体社会模拟系统",
+  title: "AI Agent Social Simulation",
+  description: "基于AI的多智能体社会模拟平台，支持复杂社会行为和组织结构的智能决策模拟"
 };

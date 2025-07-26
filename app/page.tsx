@@ -6,7 +6,6 @@ import Link from 'next/link';
 export default function HomePage() {
   return (
     <main className="flex-1">
-      {/* Hero Section */}
       <section className="py-20 text-center">
         <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8">
           <h1 className="text-4xl font-bold text-foreground tracking-tight sm:text-5xl md:text-6xl">
@@ -40,7 +39,6 @@ export default function HomePage() {
         </div>
       </section>
 
-      {/* Features Section */}
       <section className="py-16 bg-muted/50">
         <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="text-center mb-12">
@@ -51,7 +49,7 @@ export default function HomePage() {
               体验真实的AI商业决策与竞争模拟
             </p>
           </div>
-          
+
           <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
             <div className="text-center p-6">
               <div className="w-16 h-16 bg-blue-100 rounded-full flex items-center justify-center mx-auto mb-4">
@@ -62,7 +60,7 @@ export default function HomePage() {
                 支持集权制(CEO-经理-员工)和去中心化(扁平协作)两种公司架构，体验不同的决策机制
               </p>
             </div>
-            
+
             <div className="text-center p-6">
               <div className="w-16 h-16 bg-purple-100 rounded-full flex items-center justify-center mx-auto mb-4">
                 <Brain className="h-8 w-8 text-purple-600" />
@@ -72,7 +70,7 @@ export default function HomePage() {
                 集成多种AI模型(OpenAI、Claude等)，每个AI员工都具有独特的决策风格和个性特征
               </p>
             </div>
-            
+
             <div className="text-center p-6">
               <div className="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-4">
                 <Users className="h-8 w-8 text-green-600" />

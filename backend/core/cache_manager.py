@@ -13,9 +13,7 @@ from models.decision import Decision
 
 logger = logging.getLogger(__name__)
 
-class CacheManager:
-    """缓存管理器"""
-    
+class CacheManager:    
     def __init__(self):
         self.default_ttl = {
             'company': 300,      # 5分钟
@@ -44,8 +42,6 @@ class CacheManager:
         }
     
     def _generate_cache_key(self, prefix: str, *args, **kwargs) -> str:
-        """生成缓存键"""
-        # 创建参数的哈希值
         key_data = {
             'args': args,
             'kwargs': kwargs
@@ -56,21 +52,18 @@ class CacheManager:
         return f"ai_war:cache:{prefix}:{key_hash}"
     
     def cached(self, ttl: Optional[int] = None, prefix: str = "default"):
-        """缓存装饰器"""
         def decorator(func: Callable):
             @wraps(func)
             async def wrapper(*args, **kwargs):
                 # 生成缓存键
                 cache_key = self._generate_cache_key(f"{prefix}:{func.__name__}", *args, **kwargs)
                 
-                # 尝试从缓存获取
                 cached_result = await redis_client.get(cache_key)
                 if cached_result is not None:
                     logger.debug(f"Cache hit for key: {cache_key}")
                     self.cache_stats['hits'] += 1
                     return cached_result
                 
-                # 缓存未命中，执行函数
                 logger.debug(f"Cache miss for key: {cache_key}")
                 self.cache_stats['misses'] += 1
                 result = await func(*args, **kwargs)
@@ -83,10 +76,8 @@ class CacheManager:
             return wrapper
         return decorator
     
-    # === 公司数据缓存 ===
     
     async def cache_company(self, company: Company) -> bool:
-        """缓存公司数据"""
         try:
             key = f"ai_war:company:{company.id}"
             data = company.to_dict()
@@ -96,7 +87,6 @@ class CacheManager:
             return False
     
     async def get_cached_company(self, company_id: str) -> Optional[Dict[str, Any]]:
-        """获取缓存的公司数据"""
         try:
             key = f"ai_war:company:{company_id}"
             return await redis_client.get(key)
@@ -105,7 +95,6 @@ class CacheManager:
             return None
     
     async def invalidate_company_cache(self, company_id: str) -> bool:
-        """使公司缓存失效"""
         try:
             key = f"ai_war:company:{company_id}"
             result = await redis_client.delete(key)
@@ -116,7 +105,6 @@ class CacheManager:
             return False
     
     async def cache_companies_list(self, companies: List[Company]) -> bool:
-        """缓存公司列表"""
         try:
             key = "ai_war:companies:list"
             data = [company.to_dict() for company in companies]
@@ -126,7 +114,6 @@ class CacheManager:
             return False
     
     async def get_cached_companies_list(self) -> Optional[List[Dict[str, Any]]]:
-        """获取缓存的公司列表"""
         try:
             key = "ai_war:companies:list"
             return await redis_client.get(key)
@@ -134,10 +121,8 @@ class CacheManager:
             logger.error(f"Error getting cached companies list: {e}")
             return None
     
-    # === 员工数据缓存 ===
     
     async def cache_employee(self, employee: Employee) -> bool:
-        """缓存员工数据"""
         try:
             key = f"ai_war:employee:{employee.id}"
             data = employee.to_dict()
@@ -147,7 +132,6 @@ class CacheManager:
             return False
     
     async def cache_decisions(self, decisions: List[Dict[str, Any]]) -> bool:
-        """缓存决策数据"""
         try:
             key = "ai_war:decisions:recent"
             return await redis_client.set(key, decisions, self.default_ttl['decision'])
@@ -156,7 +140,6 @@ class CacheManager:
             return False
     
     async def get_cached_decisions(self) -> Optional[List[Dict[str, Any]]]:
-        """获取缓存的决策数据"""
         try:
             key = "ai_war:decisions:recent"
             return await redis_client.get(key)
@@ -165,7 +148,6 @@ class CacheManager:
             return None
     
     async def cache_ai_stats(self, ai_stats: Dict[str, Any]) -> bool:
-        """缓存AI统计数据"""
         try:
             key = "ai_war:ai:stats"
             return await redis_client.set(key, ai_stats, self.default_ttl['statistics'])
@@ -174,7 +156,6 @@ class CacheManager:
             return False
     
     async def get_cached_ai_stats(self) -> Optional[Dict[str, Any]]:
-        """获取缓存的AI统计数据"""
         try:
             key = "ai_war:ai:stats"
             return await redis_client.get(key)
@@ -183,9 +164,7 @@ class CacheManager:
             return None
     
     async def clear_game_cache(self) -> bool:
-        """清空游戏缓存"""
         try:
-            # 删除所有游戏相关的缓存键
             patterns = [
                 "ai_war:company:*",
                 "ai_war:employee:*",
@@ -212,7 +191,6 @@ class CacheManager:
             return False
     
     async def cache_company_employees(self, company_id: str, employees: List[Employee]) -> bool:
-        """缓存公司员工列表"""
         try:
             key = f"ai_war:company:{company_id}:employees"
             data = [employee.to_dict() for employee in employees]
@@ -222,7 +200,6 @@ class CacheManager:
             return False
     
     async def get_cached_company_employees(self, company_id: str) -> Optional[List[Dict[str, Any]]]:
-        """获取缓存的公司员工列表"""
         try:
             key = f"ai_war:company:{company_id}:employees"
             return await redis_client.get(key)
@@ -230,10 +207,8 @@ class CacheManager:
             logger.error(f"Error getting cached employees for company {company_id}: {e}")
             return None
     
-    # === 决策数据缓存 ===
     
     async def cache_decision(self, decision: Decision) -> bool:
-        """缓存决策数据"""
         try:
             key = f"ai_war:decision:{decision.id}"
             data = decision.to_dict()
@@ -243,7 +218,6 @@ class CacheManager:
             return False
     
     async def cache_company_decisions(self, company_id: str, decisions: List[Decision], limit: int = 50) -> bool:
-        """缓存公司决策列表"""
         try:
             key = f"ai_war:company:{company_id}:decisions"
             data = [decision.to_dict() for decision in decisions[:limit]]
@@ -253,7 +227,6 @@ class CacheManager:
             return False
     
     async def get_cached_company_decisions(self, company_id: str) -> Optional[List[Dict[str, Any]]]:
-        """获取缓存的公司决策列表"""
         try:
             key = f"ai_war:company:{company_id}:decisions"
             return await redis_client.get(key)
@@ -261,10 +234,8 @@ class CacheManager:
             logger.error(f"Error getting cached decisions for company {company_id}: {e}")
             return None
     
-    # === 游戏状态缓存 ===
     
     async def cache_game_stats(self, stats: Dict[str, Any]) -> bool:
-        """缓存游戏统计信息"""
         try:
             key = "ai_war:game:stats"
             return await redis_client.set(key, stats, self.default_ttl['game_state'])
@@ -273,7 +244,6 @@ class CacheManager:
             return False
     
     async def get_cached_game_stats(self) -> Optional[Dict[str, Any]]:
-        """获取缓存的游戏统计信息"""
         try:
             key = "ai_war:game:stats"
             return await redis_client.get(key)
@@ -282,7 +252,6 @@ class CacheManager:
             return None
     
     async def cache_simulation_status(self, status: Dict[str, Any]) -> bool:
-        """缓存模拟状态"""
         try:
             key = "ai_war:simulation:status"
             return await redis_client.set(key, status, self.default_ttl['game_state'])
@@ -291,7 +260,6 @@ class CacheManager:
             return False
     
     async def get_cached_simulation_status(self) -> Optional[Dict[str, Any]]:
-        """获取缓存的模拟状态"""
         try:
             key = "ai_war:simulation:status"
             return await redis_client.get(key)
@@ -299,10 +267,8 @@ class CacheManager:
             logger.error(f"Error getting cached simulation status: {e}")
             return None
     
-    # === 事件缓存 ===
     
     async def add_game_event(self, event: Dict[str, Any]) -> bool:
-        """添加游戏事件"""
         try:
             # 添加时间戳
             event['cached_at'] = datetime.now().isoformat()
@@ -323,7 +289,6 @@ class CacheManager:
             return False
     
     async def get_cached_events(self, company_id: Optional[str] = None, limit: int = 100) -> List[Dict[str, Any]]:
-        """获取缓存的游戏事件"""
         try:
             key = "ai_war:events:stream"
             events = await redis_client.lrange(key, 0, limit - 1)
@@ -338,10 +303,8 @@ class CacheManager:
             logger.error(f"Error getting cached events: {e}")
             return []
     
-    # === 排行榜缓存 ===
     
     async def update_company_ranking(self, company_id: str, score: float) -> bool:
-        """更新公司排行榜"""
         try:
             key = "ai_war:leaderboard:companies"
             await redis_client.zadd(key, {company_id: score})
@@ -352,7 +315,6 @@ class CacheManager:
             return False
     
     async def get_company_leaderboard(self, limit: int = 10) -> List[Dict[str, Any]]:
-        """获取公司排行榜"""
         try:
             key = "ai_war:leaderboard:companies"
             results = await redis_client.zrange(key, 0, limit - 1, desc=True, withscores=True)
@@ -370,10 +332,8 @@ class CacheManager:
             logger.error(f"Error getting company leaderboard: {e}")
             return []
     
-    # === 会话管理 ===
     
     async def store_session(self, session_id: str, session_data: Dict[str, Any], expire: int = 3600) -> bool:
-        """存储会话数据"""
         try:
             key = f"ai_war:session:{session_id}"
             return await redis_client.set(key, session_data, expire)
@@ -382,7 +342,6 @@ class CacheManager:
             return False
     
     async def get_session(self, session_id: str) -> Optional[Dict[str, Any]]:
-        """获取会话数据"""
         try:
             key = f"ai_war:session:{session_id}"
             return await redis_client.get(key)
@@ -391,7 +350,6 @@ class CacheManager:
             return None
     
     async def delete_session(self, session_id: str) -> bool:
-        """删除会话"""
         try:
             key = f"ai_war:session:{session_id}"
             result = await redis_client.delete(key)
@@ -400,13 +358,9 @@ class CacheManager:
             logger.error(f"Error deleting session {session_id}: {e}")
             return False
     
-    # === 缓存管理 ===
     
     async def clear_cache(self, pattern: str = "ai_war:cache:*") -> int:
-        """清除匹配模式的缓存"""
         try:
-            # 注意：在生产环境中应该谨慎使用KEYS命令
-            # 这里仅用于开发和测试
             keys = await redis_client.redis.keys(pattern)
             if keys:
                 return await redis_client.delete(*keys)
@@ -416,11 +370,9 @@ class CacheManager:
             return 0
     
     async def get_cache_info(self) -> Dict[str, Any]:
-        """获取缓存信息"""
         try:
             info = await redis_client.info('memory')
             
-            # 统计不同类型的键数量
             patterns = {
                 'companies': 'ai_war:company:*',
                 'employees': 'ai_war:employee:*',
@@ -448,10 +400,8 @@ class CacheManager:
             logger.error(f"Error getting cache info: {e}")
             return {}
 
-    # === 高级缓存管理 ===
     
     async def bulk_cache_companies(self, companies: List[Company]) -> Dict[str, bool]:
-        """批量缓存公司数据"""
         results = {}
         for company in companies:
             result = await self.cache_company(company)
@@ -459,7 +409,6 @@ class CacheManager:
         return results
     
     async def bulk_invalidate_cache(self, keys: List[str]) -> int:
-        """批量使缓存失效"""
         try:
             if not keys:
                 return 0
@@ -469,7 +418,6 @@ class CacheManager:
             return 0
     
     async def get_cache_statistics(self) -> Dict[str, Any]:
-        """获取缓存统计信息"""
         hit_rate = 0.0
         total_requests = self.cache_stats['hits'] + self.cache_stats['misses']
         if total_requests > 0:
@@ -485,10 +433,8 @@ class CacheManager:
         }
     
     async def warm_up_cache(self, companies: List[Company], employees: List[Employee]) -> Dict[str, int]:
-        """缓存预热"""
         results = {'companies': 0, 'employees': 0, 'errors': 0}
         
-        # 预热公司数据
         for company in companies:
             try:
                 if await self.cache_company(company):
@@ -497,7 +443,6 @@ class CacheManager:
                 logger.error(f"Error warming up company cache {company.id}: {e}")
                 results['errors'] += 1
         
-        # 预热员工数据
         for employee in employees:
             try:
                 if await self.cache_employee(employee):
@@ -510,7 +455,6 @@ class CacheManager:
         return results
     
     async def cleanup_expired_cache(self) -> int:
-        """清理过期缓存"""
         try:
             pattern_keys = [
                 "ai_war:cache:*",
@@ -521,7 +465,6 @@ class CacheManager:
             
             total_deleted = 0
             for pattern in pattern_keys:
-                # 这里可以实现自定义的过期缓存清理逻辑
                 keys = await redis_client.redis.keys(pattern)
                 if keys:
                     deleted = await redis_client.delete(*keys)
@@ -535,7 +478,6 @@ class CacheManager:
             return 0
     
     async def cache_game_state_snapshot(self, step: int, state_data: Dict[str, Any]) -> bool:
-        """缓存游戏状态快照"""
         try:
             key = f"ai_war:game:snapshot:{step}"
             data = {
@@ -549,7 +491,6 @@ class CacheManager:
             return False
     
     async def get_cached_game_state_snapshot(self, step: int) -> Optional[Dict[str, Any]]:
-        """获取缓存的游戏状态快照"""
         try:
             key = f"ai_war:game:snapshot:{step}"
             return await redis_client.get(key)
@@ -562,7 +503,6 @@ cache_manager = CacheManager()
 
 # 缓存管理器辅助函数
 async def get_or_set_cache(key: str, getter_func: Callable, ttl: int = 300) -> Any:
-    """通用缓存获取或设置函数"""
     try:
         # 尝试从缓存获取
         cached_value = await redis_client.get(key)
@@ -581,5 +521,4 @@ async def get_or_set_cache(key: str, getter_func: Callable, ttl: int = 300) -> A
     except Exception as e:
         logger.error(f"Error in get_or_set_cache for key {key}: {e}")
         cache_manager.cache_stats['errors'] += 1
-        # 缓存失败时直接执行函数
         return await getter_func()

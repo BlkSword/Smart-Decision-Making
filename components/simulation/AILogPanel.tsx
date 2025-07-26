@@ -105,16 +105,17 @@ export const AILogPanel: React.FC<AILogPanelProps> = ({ companyId }) => {
   // 将决策数据转换为AI日志格式
   const convertDecisionToLog = (decision: DecisionData): AILogEntry => {
     const hasAIProvider = decision.ai_provider && decision.ai_provider !== null;
-
+    const companyName = decision.company_name || '未知公司';
+    
     // 生成提示词内容
-    const prompt = `为${decision.company_name || '未知公司'}的${decision.employee_role}${decision.employee_name || ''}生成${decision.decision_type}类型的决策内容`;
+    const prompt = `为${companyName}的${decision.employee_role}${decision.employee_name || ''}生成${decision.decision_type}类型的决策内容`;
 
     return {
       id: decision.id,
       timestamp: decision.created_at,
       type: hasAIProvider ? 'response' : 'error',
       company_id: decision.company_id,
-      company_name: decision.company_name ?? undefined,
+      company_name: companyName,
       employee_id: decision.employee_id,
       employee_name: decision.employee_name ?? undefined,
       employee_role: decision.employee_role,

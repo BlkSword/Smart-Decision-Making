@@ -275,9 +275,6 @@ export function SimulationStats({ stats: initialStats, autoRefresh = true }: Sim
                   decimals={4}
                 />
               </div>
-              <div className="text-xs text-muted-foreground">
-                <AnimatedCounter value={stats.ai_stats.total_calls} suffix=" 次调用" />
-              </div>
             </CardContent>
           </Card>
         )}

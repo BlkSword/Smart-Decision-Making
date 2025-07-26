@@ -7,6 +7,7 @@ from enum import Enum
 import random
 import json
 import uuid
+import math
 
 from .ai_client import AIClient, AIProvider
 from .cache_manager import cache_manager
@@ -1063,6 +1064,12 @@ class GameEngine:
         """更新公司状态"""
         events = []
         
+        # 添加基于决策的成本计算
+        await self._apply_decision_costs(events)
+        
+        # 添加每轮总结机制
+        await self._apply_round_summary_penalty(events)
+        
         for company in self.companies.values():
             if not company.is_active:
                 continue
@@ -1088,7 +1095,204 @@ class GameEngine:
             )
             events.append(event)
         
+        # 检查公司是否破产
+        await self._check_bankruptcies(events)
+        
+        # 检查游戏是否结束
+        await self._check_game_end(events)
+        
         return events
+    
+    async def _apply_decision_costs(self, events: List[GameEvent]):
+        """根据决策的时间、成功率和成本应用决策费用"""
+        # 按公司分组决策
+        decisions_by_company = {}
+        for decision in self.decisions:
+            if decision.company_id not in decisions_by_company:
+                decisions_by_company[decision.company_id] = []
+            decisions_by_company[decision.company_id].append(decision)
+        
+        # 为每个公司的决策计算成本
+        for company_id, decisions in decisions_by_company.items():
+            if company_id not in self.companies:
+                continue
+                
+            company = self.companies[company_id]
+            if not company.is_active:
+                continue
+            
+            total_decision_cost = 0
+            
+            for decision in decisions:
+                # 基础成本就是决策本身产生的成本
+                base_cost = decision.cost if decision.cost else 0
+                
+                # 添加数值有效性检查
+                if not isinstance(base_cost, (int, float)) or not math.isfinite(base_cost):
+                    logger.warning(f"Invalid base_cost for decision {decision.id}: {base_cost}")
+                    base_cost = 0
+                
+                # 计算决策成功率影响因子
+                success_factor = 1.0
+                if decision.status == DecisionStatus.COMPLETED:
+                    # 成功决策成本降低
+                    success_factor = 0.8
+                elif decision.status == DecisionStatus.REJECTED:
+                    # 失败决策成本增加
+                    success_factor = 1.5
+                
+                # 添加因子有效性检查
+                if not isinstance(success_factor, (int, float)) or not math.isfinite(success_factor):
+                    logger.warning(f"Invalid success_factor for decision {decision.id}: {success_factor}")
+                    success_factor = 1.0
+                
+                # 计算时间影响因子（越早的决策影响越小）
+                time_factor = 1.0
+                if decision.created_at:
+                    # 计算决策创建时间与当前时间的差值
+                    time_diff = datetime.now() - decision.created_at
+                    # 超过1轮的决策影响减半
+                    if time_diff.total_seconds() > self.config["round_interval"]:
+                        time_factor = 0.5
+                
+                # 添加因子有效性检查
+                if not isinstance(time_factor, (int, float)) or not math.isfinite(time_factor):
+                    logger.warning(f"Invalid time_factor for decision {decision.id}: {time_factor}")
+                    time_factor = 1.0
+                
+                # 计算最终成本
+                decision_cost = base_cost * success_factor * time_factor
+                
+                # 添加最终成本有效性检查
+                if not isinstance(decision_cost, (int, float)) or not math.isfinite(decision_cost):
+                    logger.warning(f"Invalid decision_cost for decision {decision.id}: {decision_cost}")
+                    decision_cost = 0
+                
+                total_decision_cost += decision_cost
+            
+            # 添加总成本有效性检查
+            if not isinstance(total_decision_cost, (int, float)) or not math.isfinite(total_decision_cost):
+                logger.warning(f"Invalid total_decision_cost for company {company_id}: {total_decision_cost}")
+                total_decision_cost = 0
+            
+            # 从公司资金中扣除决策成本，确保不会导致负数资金
+            deduction = int(total_decision_cost)
+            company.funds = max(0, company.funds - deduction)
+            
+            # 添加决策成本事件
+            if deduction > 0:
+                event = GameEvent(
+                    id=f"decision_cost_{company.id}_{self.current_round}",
+                    type="decision_cost_applied",
+                    timestamp=datetime.now(),
+                    company_id=company.id,
+                    description=f"{company.name} 支付决策相关费用 {deduction}",
+                    data={
+                        "decision_cost": deduction,
+                        "remaining_funds": company.funds,
+                        "decision_count": len(decisions)
+                    }
+                )
+                events.append(event)
+    
+    async def _apply_round_summary_penalty(self, events: List[GameEvent]):
+        """应用每轮总结惩罚机制 - 表现最差的公司会被扣除至少1000资金"""
+        if len(self.companies) <= 1:
+            return  # 只剩一个或没有公司时不执行惩罚
+            
+        # 确定表现最差的公司（资金最少的活跃公司）
+        active_companies = [c for c in self.companies.values() if c.is_active]
+        if len(active_companies) <= 1:
+            return  # 只剩一个或没有活跃公司时不执行惩罚
+            
+        # 按资金排序，找到资金最少的公司
+        weakest_company = min(active_companies, key=lambda c: c.funds)
+        
+        # 计算惩罚金额 - 至少1000，或者是公司当前资金的较大比例（让惩罚更明显）
+        penalty_amount = max(1000, int(weakest_company.funds * 0.3))  # 至少1000，或者当前资金的30%
+        
+        # 添加数值有效性检查
+        if not isinstance(penalty_amount, (int, float)) or not math.isfinite(penalty_amount):
+            logger.warning(f"Invalid penalty_amount calculated: {penalty_amount}")
+            penalty_amount = 1000
+            
+        # 确保惩罚金额不超过公司当前资金，防止负数
+        penalty_amount = min(penalty_amount, weakest_company.funds)
+        
+        # 应用惩罚
+        weakest_company.funds = max(0, weakest_company.funds - penalty_amount)
+        
+        # 创建惩罚事件
+        penalty_event = GameEvent(
+            id=f"round_penalty_{weakest_company.id}_{self.current_round}",
+            type="round_penalty_applied",
+            timestamp=datetime.now(),
+            company_id=weakest_company.id,
+            description=f"{weakest_company.name} 在本轮中表现最差，被扣除资金 {penalty_amount}",
+            data={
+                "penalty_amount": penalty_amount,
+                "remaining_funds": weakest_company.funds,
+                "company_name": weakest_company.name
+            }
+        )
+        events.append(penalty_event)
+        
+        logger.info(f"Weakest company {weakest_company.name} penalized with {penalty_amount} funds")
+    
+    async def _check_bankruptcies(self, events: List[GameEvent]):
+        """检查公司是否破产"""
+        for company in self.companies.values():
+            if company.is_active and company.funds <= 0:
+                # 公司破产
+                company.is_active = False
+                company.funds = 0
+                
+                # 发布破产事件
+                event = GameEvent(
+                    id=f"bankruptcy_{company.id}_{self.current_round}",
+                    type="company_bankruptcy",
+                    timestamp=datetime.now(),
+                    company_id=company.id,
+                    description=f"{company.name} 公司因资金耗尽而破产",
+                    data={
+                        "company_id": company.id,
+                        "company_name": company.name,
+                        "final_funds": company.funds
+                    }
+                )
+                events.append(event)
+                
+                logger.info(f"Company {company.name} has gone bankrupt")
+    
+    async def _check_game_end(self, events: List[GameEvent]):
+        """检查游戏是否结束（只剩一个活跃公司）"""
+        active_companies = [c for c in self.companies.values() if c.is_active]
+        
+        # 如果活跃公司少于等于1个，则游戏结束
+        if len(active_companies) <= 1:
+            # 发布游戏结束事件
+            winner = active_companies[0].name if active_companies else "None"
+            event = GameEvent(
+                id=f"game_end_{self.current_round}",
+                type="game_end",
+                timestamp=datetime.now(),
+                company_id=None,
+                description=f"游戏结束！获胜公司: {winner}",
+                data={
+                    "winner": winner,
+                    "active_companies_count": len(active_companies),
+                    "total_rounds": self.current_round
+                }
+            )
+            events.append(event)
+            
+            # 停止游戏
+            self.state = GameState.STOPPED
+            if self.auto_round_task:
+                self.auto_round_task.cancel()
+                self.auto_round_task = None
+            
+            logger.info(f"Game ended. Winner: {winner}")
     
     def get_game_stats(self) -> Dict[str, Any]:
         """获取游戏统计信息"""

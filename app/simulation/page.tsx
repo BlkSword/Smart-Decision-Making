@@ -225,9 +225,9 @@ export default function SimulationPage() {
     loadSimulationData(true, false);
   }, []);
 
+  // 控制模拟
   const controlSimulation = async (action: 'start' | 'pause' | 'resume' | 'stop' | 'end') => {
     try {
-      // 特殊处理end操作
       if (action === 'end') {
         setSummaryLoading(true);
         const response = await fetch('http://localhost:8000/api/simulation/end', {
@@ -235,11 +235,21 @@ export default function SimulationPage() {
         });
 
         if (response.ok) {
-          // 获取游戏总结数据
           const statsData = await response.json();
           setGameSummary(statsData);
           setShowGameSummary(true);
           await loadSimulationData(false, false);
+
+          // 每轮结束时提示获胜者
+          if (statsData && statsData.companies) {
+            const currentRound = simulationStatus?.current_round || 0;
+            if (currentRound > 0) {
+              const winner = Object.entries(statsData.companies).reduce((prev, curr) => 
+                prev[1].funds > curr[1].funds ? prev : curr
+              )[1];
+              alert(`第${currentRound}轮获胜者：${winner.name}`);
+            }
+          }
         } else {
           const errorData = await response.json();
           setError(errorData.detail || 'Failed to end simulation');
@@ -251,7 +261,7 @@ export default function SimulationPage() {
       const response = await fetch(`/api/simulation/${action}`, {
         method: 'POST',
       });
-
+      
       if (response.ok) {
         await loadSimulationData(false, false);
       } else {
@@ -259,7 +269,7 @@ export default function SimulationPage() {
         setError(errorData.detail || `Failed to ${action} simulation`);
       }
     } catch (err) {
-      setError(`Error ${action}ing simulation`);
+      setError(`Error ${action}ing simulation: ${(err as Error).message}`);
       console.error(`Error ${action}ing simulation:`, err);
     }
   };

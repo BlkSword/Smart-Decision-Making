@@ -76,7 +76,6 @@ class ClusterConfigManager:
                 auto_failover=os.getenv('REDIS_CLUSTER_AUTO_FAILOVER', 'true').lower() == 'true'
             )
             
-            # 检查是否有单节点配置（向后兼容）
             single_host = os.getenv('REDIS_HOST')
             single_port = os.getenv('REDIS_PORT')
             single_password = os.getenv('REDIS_PASSWORD')
@@ -105,7 +104,6 @@ class ClusterConfigManager:
     
     def _parse_cluster_nodes_string(self, nodes_string: str):
         """解析集群节点字符串"""
-        # 格式: "host1:port1:password1:weight1,host2:port2:password2:weight2"
         try:
             for node_str in nodes_string.split(','):
                 parts = node_str.strip().split(':')
@@ -310,7 +308,6 @@ class ClusterConfigManager:
             'validation_errors': self.validate_config()
         }
 
-# 示例配置文件模板
 def create_example_config_file(file_path: str = 'redis_cluster_example.yaml'):
     """创建示例配置文件"""
     example_config = {

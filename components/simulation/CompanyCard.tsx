@@ -32,7 +32,7 @@ interface CompanyCardProps {
 
 export function CompanyCard({ company, isSelected = false, onClick, onDoubleClick, onDelete }: CompanyCardProps) {
   const [isDeleting, setIsDeleting] = useState(false);
-  
+
   const handleClick = (e: React.MouseEvent) => {
     e.stopPropagation(); // 防止事件冒泡
     onClick?.();
@@ -42,7 +42,7 @@ export function CompanyCard({ company, isSelected = false, onClick, onDoubleClic
     e.stopPropagation(); // 防止事件冒泡
     onDoubleClick?.();
   };
-  
+
   const handleDelete = async (e: React.MouseEvent) => {
     e.stopPropagation(); // 防止触发卡片点击事件
     if (onDelete && !isDeleting) {
@@ -66,7 +66,7 @@ export function CompanyCard({ company, isSelected = false, onClick, onDoubleClic
   };
 
   return (
-    <Card 
+    <Card
       className={cn(
         "cursor-pointer transition-all duration-200 hover:shadow-md",
         isSelected && "ring-2 ring-primary ring-offset-2",
@@ -81,20 +81,20 @@ export function CompanyCard({ company, isSelected = false, onClick, onDoubleClic
             <Building2 className="h-5 w-5 text-muted-foreground" />
             <CardTitle className="text-lg">{company.name}</CardTitle>
           </div>
-          <Badge 
-            variant="secondary" 
+          <Badge
+            variant="secondary"
             className={getCompanyTypeColor(company.company_type)}
           >
             {getCompanyTypeLabel(company.company_type)}
           </Badge>
         </div>
         <CardDescription>
-          {company.company_type === 'centralized' 
-            ? 'CEO-经理-员工三级决策架构' 
+          {company.company_type === 'centralized'
+            ? 'CEO-经理-员工三级决策架构'
             : '扁平化协作决策架构'}
         </CardDescription>
       </CardHeader>
-      
+
       <CardContent className="pt-0">
         <div className="grid grid-cols-2 gap-4">
           {/* 资金 */}
@@ -107,7 +107,7 @@ export function CompanyCard({ company, isSelected = false, onClick, onDoubleClic
               <p className="text-xs text-muted-foreground">资金</p>
             </div>
           </div>
-          
+
           {/* 规模 */}
           <div className="flex items-center space-x-2">
             <Users className="h-4 w-4 text-blue-600" />
@@ -119,8 +119,8 @@ export function CompanyCard({ company, isSelected = false, onClick, onDoubleClic
             </div>
           </div>
         </div>
-        
-        {/* 公司指标 */}
+
+        {/* 公司指标
         {(company.productivity || company.innovation || company.efficiency) && (
           <div className="mt-4 pt-4 border-t">
             <div className="flex items-center space-x-4 text-xs">
@@ -144,8 +144,8 @@ export function CompanyCard({ company, isSelected = false, onClick, onDoubleClic
               )}
             </div>
           </div>
-        )}
-        
+        )} */}
+
         {/* 状态指示器 */}
         <div className="mt-3 flex items-center justify-between">
           <div className="flex items-center space-x-2">
@@ -157,13 +157,13 @@ export function CompanyCard({ company, isSelected = false, onClick, onDoubleClic
               {company.is_active ? '运营中' : '已停止'}
             </span>
           </div>
-          
+
           {isSelected && (
             <Badge variant="outline" className="text-xs">
               已选中
             </Badge>
           )}
-          
+
           <Button
             variant="ghost"
             size="sm"
