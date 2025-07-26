@@ -73,7 +73,7 @@ interface EventGraphProps {
 
 export const EventGraph: React.FC<EventGraphProps> = ({
   companyId,
-  autoUpdate = true,
+  autoUpdate = false,
   showControls = true,
   height = 600
 }) => {
@@ -130,7 +130,7 @@ export const EventGraph: React.FC<EventGraphProps> = ({
       const progressData = companies.map((company: any, index: number) => {
         const companyEvents = events
           .filter((event: any) => event.company_id === company.id)
-          .slice(0, 10) // 限制事件数量
+          .slice(0, 10)
           .map((event: any) => ({
             id: event.id,
             type: event.type || 'event',
@@ -192,7 +192,6 @@ export const EventGraph: React.FC<EventGraphProps> = ({
   // 鼠标事件处理
   const handleMouseDown = useCallback((event: React.MouseEvent) => {
     if ((event.target as Element).classList.contains('draggable')) {
-      // 如果点击的是可拖动元素，则不处理平移
       return;
     }
     setIsDragging(true);
@@ -219,6 +218,32 @@ export const EventGraph: React.FC<EventGraphProps> = ({
             y: company.y + (event.movementY / scale)
           };
         }
+        
+        // 处理员工节点拖动
+        if (draggingNode.type === 'employee') {
+          const updatedEmployees = company.employees.map(employee => {
+            if (employee.id === draggingNode.id) {
+              return {
+                ...employee,
+                x: employee.x + (event.movementX / scale),
+                y: employee.y + (event.movementY / scale)
+              };
+            }
+            return employee;
+          });
+          
+          return {
+            ...company,
+            employees: updatedEmployees
+          };
+        }
+        
+        // 处理事件节点拖动
+        if (draggingNode.type === 'event') {
+          // 事件节点位置存储在单独的状态中
+          return company;
+        }
+        
         return company;
       }));
     }
@@ -331,7 +356,7 @@ export const EventGraph: React.FC<EventGraphProps> = ({
     const managers = employees.filter(emp => emp.role === 'manager');
     const regularEmployees = employees.filter(emp => emp.role === 'employee');
 
-    // 计算管理层位置（围绕CEO的第一层圆环）
+    // 计算管理层位置
     const managerRadius = 60;
     managers.forEach((manager, index) => {
       const angle = (index / managers.length) * 2 * Math.PI;
@@ -342,11 +367,10 @@ export const EventGraph: React.FC<EventGraphProps> = ({
       });
     });
 
-    // 计算普通员工位置（围绕管理层的第二层圆环）
+    // 计算普通员工位置
     const employeeRadius = 120;
     regularEmployees.forEach((employee, index) => {
       const employeeCount = regularEmployees.length;
-      // 修复偶数员工数量显示问题，添加偏移量避免节点重叠
       const angle = (index / employeeCount) * 2 * Math.PI + (employeeCount % 2 === 0 ? Math.PI / employeeCount : 0);
       arrangedEmployees.push({
         ...employee,
@@ -441,6 +465,9 @@ export const EventGraph: React.FC<EventGraphProps> = ({
               <Button variant="outline" size="sm" onClick={handleReset}>
                 <RotateCcw className="h-4 w-4" />
               </Button>
+              <Button variant="outline" size="sm" onClick={fetchData}>
+                刷新数据
+              </Button>
             </div>
           )}
         </div>
@@ -529,6 +556,7 @@ export const EventGraph: React.FC<EventGraphProps> = ({
                         opacity={company.isActive ? 1 : 0.6}
                         className={isAnimating ? 'animate-pulse' : ''}
                         onClick={() => handleCompanyClick(company)}
+                        onMouseDown={(e) => handleNodeMouseDown(e, 'company', company.id)}
                       />
 
                       {/* 公司名称 */}

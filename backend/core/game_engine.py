@@ -28,16 +28,16 @@ class GameState(Enum):
 
 class GameMode(Enum):
     """游戏模式"""
-    AUTO = "auto"  # 自动模式
-    MANUAL = "manual"  # 手动模式
+    AUTO = "auto"  
+    MANUAL = "manual"  
 
 class RoundPhase(Enum):
     """轮次阶段"""
-    FUNDING = "funding"  # 资金分配阶段
-    AI_DECISIONS = "ai_decisions"  # AI决策阶段
-    MARKET_EVENTS = "market_events"  # 市场事件阶段
-    STATUS_UPDATE = "status_update"  # 状态更新阶段
-    ROUND_COMPLETE = "round_complete"  # 轮次完成
+    FUNDING = "funding"  
+    AI_DECISIONS = "ai_decisions"  
+    MARKET_EVENTS = "market_events"  
+    STATUS_UPDATE = "status_update"  
+    ROUND_COMPLETE = "round_complete"  
 
 @dataclass
 class GameEvent:
@@ -121,7 +121,6 @@ class GameEngine:
         self.used_names = set()
     
     async def initialize(self, auto_start=True):
-        """初始化游戏引擎"""
         logger.info("Initializing game engine...")
         
         # 清空使用的名字集合
@@ -133,46 +132,37 @@ class GameEngine:
         # 根据参数决定是否自动开始游戏
         if auto_start:
             self.state = GameState.RUNNING
-            self.current_round = 0  # 确保轮次从0开始
-            # 如果是自动模式，启动自动轮次
+            self.current_round = 0  
             if self.mode == GameMode.AUTO:
                 await self.start_auto_rounds()
         else:
             # 初始化完成但不自动开始
             self.state = GameState.STOPPED
-            self.current_round = 0  # 确保轮次从0开始
+            self.current_round = 0  
         
         self.last_round_time = datetime.now()
         
         logger.info(f"Game engine initialized successfully, auto_start: {auto_start}, state: {self.state.value}")
     
     async def _create_initial_companies(self):
-        """创建初始公司"""
-        # 清空现有公司
         self.companies.clear()
         
-        # 只有在游戏真正开始时才创建初始公司
-        # 在初始化阶段不创建实际公司，让前端可以显示"请启动模拟系统"的提示
         logger.info("Created empty company list for initial state")
     
     def _generate_unique_name(self, company_name: str, role: Role) -> str:
-        """生成唯一的员工名字"""
         max_attempts = 100
         for _ in range(max_attempts):
             surname = random.choice(self.SURNAMES)
             given_name = random.choice(self.GIVEN_NAMES)
-            # 添加随机第二个名字（有时候）
             if random.random() < 0.3:
                 given_name += random.choice(self.GIVEN_NAMES)
             
             full_name = f"{surname}{given_name}"
             
-            # 检查名字是否已经使用
             if full_name not in self.used_names:
                 self.used_names.add(full_name)
                 return full_name
         
-        # 如果生成不了唯一名字，使用数字后缀
         base_name = f"{random.choice(self.SURNAMES)}{random.choice(self.GIVEN_NAMES)}"
         counter = 1
         while f"{base_name}{counter}" in self.used_names:
@@ -249,7 +239,7 @@ class GameEngine:
                 break
             except Exception as e:
                 logger.error(f"Error in auto round loop: {e}")
-                await asyncio.sleep(5)  # 错误后等待5秒
+                await asyncio.sleep(5)  
     
     async def execute_round(self) -> List[GameEvent]:
         """执行游戏轮次"""
@@ -481,7 +471,6 @@ class GameEngine:
         # 添加延迟以避免并发
         await asyncio.sleep(self.config["ai_request_delay"])
         
-        # 再次检查状态（在延迟后）
         if self.state != GameState.RUNNING:
             return Decision(
                 id=f"paused_decision_{company.id}_{employee.id}_{self.current_round}_{datetime.now().timestamp()}",
@@ -747,7 +736,7 @@ class GameEngine:
             
             # 缓存决策数据
             decisions_data = []
-            for decision in self.decisions[-10:]:  # 最近10个决策
+            for decision in self.decisions[-10:]:  
                 decision_dict = {
                     'id': decision.id,
                     'company_id': decision.company_id,
@@ -821,7 +810,7 @@ class GameEngine:
         
         logger.info("Game reset completed")
 
-    # 添加新方法：创建公司并允许指定组织类型
+    # 创建公司并允许指定组织类型
     async def create_company(self, name: str, company_type: str, size: int = 10, funds: int = 50000):
         """创建公司
         Args:
@@ -868,9 +857,9 @@ class GameEngine:
 
         return company
 
-    # 修改方法：允许自定义员工属性
+    # 允许自定义员工属性
     async def create_employee(self, company_id: str, name: str, role: str, level: int,
-                             experience: int, ai_personality: str, decision_style: str):
+                            experience: int, ai_personality: str, decision_style: str):
         """创建员工
         Args:
             company_id: 公司ID
@@ -936,8 +925,6 @@ class GameEngine:
     async def _create_employees_for_company(self, company: Company):
         """为公司创建员工"""
         if company.company_type == CompanyType.CENTRALIZED:
-            # 集权公司：CEO-经理-员工结构
-            # 1个CEO
             ceo = Employee(
                 id=f"{company.id}_ceo",
                 company_id=company.id,
@@ -951,7 +938,6 @@ class GameEngine:
             ceo.decision_style = self._generate_decision_style()
             self.employees[ceo.id] = ceo
             
-            # 3个经理
             for i in range(3):
                 manager = Employee(
                     id=f"{company.id}_manager_{i}",
@@ -967,7 +953,7 @@ class GameEngine:
                 self.employees[manager.id] = manager
             
             # 其余为员工
-            remaining_employees = max(0, company.size - 4)  # 确保不为负数
+            remaining_employees = max(0, company.size - 4)  
             for i in range(remaining_employees):
                 employee = Employee(
                     id=f"{company.id}_employee_{i}",
@@ -982,7 +968,7 @@ class GameEngine:
                 employee.decision_style = self._generate_decision_style()
                 self.employees[employee.id] = employee
         
-        else:  # DECENTRALIZED
+        else:  
             # 去中心化公司：全部为员工，扁平化结构
             for i in range(company.size):
                 employee = Employee(
@@ -1012,6 +998,11 @@ class GameEngine:
             # 添加随机因素
             funding_amount *= random.uniform(0.8, 1.2)
             funding_amount = int(funding_amount)
+            
+            # 添加数值有效性检查
+            if not isinstance(funding_amount, (int, float)) or not math.isfinite(funding_amount):
+                logger.warning(f"Invalid funding_amount calculated: {funding_amount}")
+                funding_amount = 0
             
             company.funds += funding_amount
             
@@ -1043,7 +1034,7 @@ class GameEngine:
             "经济波动"
         ]
         
-        if random.random() < 0.3:  # 30%概率生成市场事件
+        if random.random() < 0.3:  
             event_type = random.choice(market_events)
             event = GameEvent(
                 id=f"market_{self.current_round}_{datetime.now().timestamp()}",
@@ -1368,3 +1359,66 @@ class GameEngine:
         if self.auto_round_task:
             self.auto_round_task.cancel()
             self.auto_round_task = None
+    
+    async def _process_customer_purchases(self) -> List[GameEvent]:
+        """处理客户购买行为"""
+        events = []
+        
+        for customer in self.customers.values():
+            # 检查客户是否可以购买
+            if not customer.can_purchase(self.current_round):
+                continue
+            
+            # 查找可以购买的公司产品
+            available_companies = list(self.companies.values())
+            if not available_companies:
+                continue
+                
+            # 根据客户类型确定购买策略
+            if customer.customer_type == CustomerType.PRICE_SENSITIVE:
+                # 客户A：寻找价格最低的公司
+                available_companies.sort(key=lambda c: c.funds)  # 简化处理，以公司资金作为价格参考
+                selected_company = available_companies[0] if available_companies else None
+                purchase_quantity = customer.purchase_quantity
+            else:  # CustomerType.PREMIUM
+                # 客户B：寻找"高端"公司（这里以资金最多的公司为例）
+                available_companies.sort(key=lambda c: c.funds, reverse=True)
+                selected_company = available_companies[0] if available_companies else None
+                purchase_quantity = customer.purchase_quantity
+            
+            # 如果找到合适的公司且公司有足够的"商品"（这里简化处理）
+            if selected_company:
+                # 更新客户上次购买轮次
+                customer.last_purchase_round = self.current_round
+                customer.current_inventory += purchase_quantity
+                
+                # 公司获得收入（简化处理）
+                revenue = purchase_quantity * 100  # 每个单位100元
+                
+                # 添加数值有效性检查
+                if not isinstance(revenue, (int, float)) or not math.isfinite(revenue):
+                    logger.warning(f"Invalid revenue calculated: {revenue}")
+                    revenue = 0
+                
+                selected_company.funds += revenue
+                
+                # 创建购买事件
+                purchase_event = GameEvent(
+                    id=f"customer_purchase_{customer.id}_{self.current_round}",
+                    type="customer_purchase",
+                    timestamp=datetime.now(),
+                    company_id=selected_company.id,
+                    description=f"{customer.name} 从 {selected_company.name} 购买了 {purchase_quantity} 个商品",
+                    data={
+                        "customer_id": customer.id,
+                        "customer_name": customer.name,
+                        "company_id": selected_company.id,
+                        "company_name": selected_company.name,
+                        "quantity": purchase_quantity,
+                        "revenue": revenue,
+                        "customer_type": customer.customer_type.value
+                    }
+                )
+                events.append(purchase_event)
+        
+        return events

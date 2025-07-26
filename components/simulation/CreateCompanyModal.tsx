@@ -332,11 +332,11 @@ export const CreateCompanyModal: React.FC<CreateCompanyModalProps> = ({
                         <select
                           value={config.level}
                           onChange={(e) => updateEmployeeConfig(index, 'level', parseInt(e.target.value))}
-                          className="w-full p-2 border rounded"
+                          className="w-full p-2 border rounded bg-black text-white"
                           disabled={loading}
                         >
                           {[1, 2, 3].map(level => (
-                            <option key={level} value={level}>等级 {level}</option>
+                            <option key={level} value={level} className="bg-black text-white">等级 {level}</option>
                           ))}
                         </select>
                       </div>
@@ -358,11 +358,11 @@ export const CreateCompanyModal: React.FC<CreateCompanyModalProps> = ({
                         <select
                           value={config.aiPersonality}
                           onChange={(e) => updateEmployeeConfig(index, 'aiPersonality', e.target.value)}
-                          className="w-full p-2 border rounded"
+                          className="w-full p-2 border rounded bg-black text-white"
                           disabled={loading}
                         >
                           {AI_PERSONALITIES.map(personality => (
-                            <option key={personality} value={personality}>{personality.split('、')[0]}</option>
+                            <option key={personality} value={personality} className="bg-black text-white">{personality.split('、')[0]}</option>
                           ))}
                         </select>
                       </div>
@@ -372,11 +372,11 @@ export const CreateCompanyModal: React.FC<CreateCompanyModalProps> = ({
                         <select
                           value={config.decisionStyle}
                           onChange={(e) => updateEmployeeConfig(index, 'decisionStyle', e.target.value)}
-                          className="w-full p-2 border rounded"
+                          className="w-full p-2 border rounded bg-black text-white"
                           disabled={loading}
                         >
                           {DECISION_STYLES.map(style => (
-                            <option key={style} value={style}>{style}</option>
+                            <option key={style} value={style} className="bg-black text-white">{style}</option>
                           ))}
                         </select>
                       </div>
