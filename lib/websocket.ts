@@ -6,6 +6,7 @@ export class WebSocketConnection {
   private reconnectAttempts = 0;
   private maxReconnectAttempts = 5;
   private reconnectTimeout: NodeJS.Timeout | null = null;
+  private connectionTimeout: NodeJS.Timeout | null = null;
   
   public onMessage: ((data: any) => void) | null = null;
   public onConnect: (() => void) | null = null;
@@ -34,6 +35,15 @@ export class WebSocketConnection {
       
       this.ws = new WebSocket(wsUrl);
       
+      // 添加连接超时处理
+      this.connectionTimeout = setTimeout(() => {
+        if (this.ws && this.ws.readyState === WebSocket.CONNECTING) {
+          console.warn('⚠️ WebSocket connection timeout, closing connection');
+          this.ws.close();
+          this.handleConnectionError(new Error('Connection timeout'));
+        }
+      }, 5000); // 5秒超时
+      
       // 添加 readyState 监控
       const checkReadyState = () => {
         console.log('🔍 WebSocket readyState:', this.ws?.readyState, '(0=CONNECTING, 1=OPEN, 2=CLOSING, 3=CLOSED)');
@@ -45,6 +55,12 @@ export class WebSocketConnection {
       setTimeout(checkReadyState, 3000);
       
       this.ws.onopen = () => {
+        // 清除连接超时
+        if (this.connectionTimeout) {
+          clearTimeout(this.connectionTimeout);
+          this.connectionTimeout = null;
+        }
+        
         console.log('✅ WebSocket connected to:', wsUrl);
         this.reconnectAttempts = 0;
         
@@ -78,6 +94,12 @@ export class WebSocketConnection {
       };
       
       this.ws.onclose = (event) => {
+        // 清除连接超时
+        if (this.connectionTimeout) {
+          clearTimeout(this.connectionTimeout);
+          this.connectionTimeout = null;
+        }
+        
         console.log('🔒 WebSocket disconnected. Code:', event.code, 'Reason:', event.reason);
         this.ws = null;
         
@@ -94,13 +116,17 @@ export class WebSocketConnection {
       };
       
       this.ws.onerror = (error) => {
+        // 清除连接超时
+        if (this.connectionTimeout) {
+          clearTimeout(this.connectionTimeout);
+          this.connectionTimeout = null;
+        }
+        
         console.error('❌ WebSocket connection error:', error);
         console.error('❌ WebSocket state:', this.ws?.readyState);
         console.error('❌ WebSocket URL was:', wsUrl);
         
-        if (this.onError) {
-          this.onError(error);
-        }
+        this.handleConnectionError(error);
       };
       
     } catch (error) {
@@ -109,23 +135,37 @@ export class WebSocketConnection {
     }
   }
 
+  private handleConnectionError(error: any) {
+    // 检查是否是连接被拒绝错误
+    if (error?.message?.includes('ECONNREFUSED') || 
+        (typeof error === 'object' && Object.keys(error).length === 0)) {
+      console.error('❌ WebSocket connection refused. Please check if the backend server is running.');
+    }
+    
+    if (this.onError) {
+      this.onError(error);
+    }
+    
+    // 尝试重连
+    this.attemptReconnect();
+  }
+
   private getWebSocketUrl(): string {
     console.log('🔍 当前页面信息:');
     console.log('  - hostname:', window.location.hostname);
     console.log('  - host:', window.location.host);
     console.log('  - protocol:', window.location.protocol);
     console.log('  - href:', window.location.href);
-    
+
     // 使用backend-config.ts中的逻辑获取后端URL
     const backendUrl = getBackendUrl();
     console.log('🌐 从backend-config获取的后端URL:', backendUrl);
-    
+
     // 将HTTP(S)协议转换为WebSocket协议
-    const wsUrl = backendUrl
-      .replace('http://', 'ws://')
-      .replace('https://', 'wss://')
-      + `/ws/${this.clientId}`;
-    
+    const wsProtocol = backendUrl.startsWith('https://') ? 'wss://' : 'ws://';
+    const backendUrlWithoutProtocol = backendUrl.replace('http://', '').replace('https://', '');
+    const wsUrl = `${wsProtocol}${backendUrlWithoutProtocol}/ws/${this.clientId}`;
+
     console.log('🔗 最终WebSocket URL:', wsUrl);
     return wsUrl;
   }
@@ -135,16 +175,21 @@ export class WebSocketConnection {
       clearTimeout(this.reconnectTimeout);
     }
     
+    if (this.connectionTimeout) {
+      clearTimeout(this.connectionTimeout);
+      this.connectionTimeout = null;
+    }
+
     if (this.reconnectAttempts >= this.maxReconnectAttempts) {
       console.error('❌ Max reconnection attempts reached');
       return;
     }
-    
+
     const delay = Math.min(1000 * Math.pow(2, this.reconnectAttempts), 30000);
     this.reconnectAttempts++;
-    
+
     console.log(`🔄 Attempting to reconnect... (${this.reconnectAttempts}/${this.maxReconnectAttempts}) in ${delay}ms`);
-    
+
     this.reconnectTimeout = setTimeout(() => {
       this.connect();
     }, delay);
@@ -200,10 +245,16 @@ export class WebSocketConnection {
       this.reconnectTimeout = null;
     }
     
+    if (this.connectionTimeout) {
+      clearTimeout(this.connectionTimeout);
+      this.connectionTimeout = null;
+    }
+
     if (this.ws) {
-      console.log('🔒 Disconnecting WebSocket...');
-      this.ws.close(1000, 'Client disconnecting');
+      this.ws.close();
       this.ws = null;
     }
+    
+    this.reconnectAttempts = 0;
   }
 }

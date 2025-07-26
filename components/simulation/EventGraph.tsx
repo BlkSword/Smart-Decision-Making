@@ -96,6 +96,10 @@ export const EventGraph: React.FC<EventGraphProps> = ({
   const [dragStart, setDragStart] = useState({ x: 0, y: 0 });
   const [lastPan, setLastPan] = useState({ x: 0, y: 0 });
 
+  // 可拖动节点状态
+  const [draggingNode, setDraggingNode] = useState<{ type: 'company' | 'employee' | 'event', id: string } | null>(null);
+  const [nodeDragStart, setNodeDragStart] = useState({ x: 0, y: 0 });
+
   // 获取数据
   const fetchData = async () => {
     try {
@@ -187,23 +191,42 @@ export const EventGraph: React.FC<EventGraphProps> = ({
 
   // 鼠标事件处理
   const handleMouseDown = useCallback((event: React.MouseEvent) => {
+    if ((event.target as Element).classList.contains('draggable')) {
+      // 如果点击的是可拖动元素，则不处理平移
+      return;
+    }
     setIsDragging(true);
     setDragStart({ x: event.clientX, y: event.clientY });
     setLastPan({ x: panX, y: panY });
   }, [panX, panY]);
 
   const handleMouseMove = useCallback((event: React.MouseEvent) => {
-    if (!isDragging) return;
+    if (isDragging) {
+      const deltaX = event.clientX - dragStart.x;
+      const deltaY = event.clientY - dragStart.y;
 
-    const deltaX = event.clientX - dragStart.x;
-    const deltaY = event.clientY - dragStart.y;
+      setPanX(lastPan.x + deltaX);
+      setPanY(lastPan.y + deltaY);
+    }
 
-    setPanX(lastPan.x + deltaX);
-    setPanY(lastPan.y + deltaY);
-  }, [isDragging, dragStart, lastPan]);
+    // 处理节点拖动
+    if (draggingNode) {
+      setCompanies(prev => prev.map(company => {
+        if (draggingNode.type === 'company' && company.id === draggingNode.id) {
+          return {
+            ...company,
+            x: company.x + (event.movementX / scale),
+            y: company.y + (event.movementY / scale)
+          };
+        }
+        return company;
+      }));
+    }
+  }, [isDragging, dragStart, lastPan, draggingNode, scale]);
 
   const handleMouseUp = useCallback(() => {
     setIsDragging(false);
+    setDraggingNode(null);
   }, []);
 
   const handleWheel = useCallback((event: React.WheelEvent) => {
@@ -239,6 +262,12 @@ export const EventGraph: React.FC<EventGraphProps> = ({
   const handleEmployeeClick = (employee: Employee) => {
     setSelectedEmployee(employee);
     setSelectedEvent(null);
+  };
+
+  // 节点拖动处理
+  const handleNodeMouseDown = (event: React.MouseEvent, type: 'company' | 'employee' | 'event', id: string) => {
+    event.stopPropagation();
+    setDraggingNode({ type, id });
   };
 
   // 获取事件/决策的颜色
@@ -282,6 +311,49 @@ export const EventGraph: React.FC<EventGraphProps> = ({
     } catch {
       return timestamp;
     }
+  };
+
+  // 对集权式公司的员工进行层级排列
+  const arrangeEmployeesForCentralizedCompany = (employees: Employee[], companyX: number, companyY: number) => {
+    const arrangedEmployees = [];
+
+    // 找到CEO
+    const ceo = employees.find(emp => emp.role === 'ceo');
+    if (ceo) {
+      arrangedEmployees.push({
+        ...ceo,
+        x: companyX,
+        y: companyY
+      });
+    }
+
+    // 管理层
+    const managers = employees.filter(emp => emp.role === 'manager');
+    const regularEmployees = employees.filter(emp => emp.role === 'employee');
+
+    // 计算管理层位置（围绕CEO的第一层圆环）
+    const managerRadius = 60;
+    managers.forEach((manager, index) => {
+      const angle = (index / managers.length) * 2 * Math.PI;
+      arrangedEmployees.push({
+        ...manager,
+        x: companyX + managerRadius * Math.cos(angle),
+        y: companyY + managerRadius * Math.sin(angle)
+      });
+    });
+
+    // 计算普通员工位置（围绕管理层的第二层圆环）
+    const employeeRadius = 120;
+    regularEmployees.forEach((employee, index) => {
+      const angle = (index / regularEmployees.length) * 2 * Math.PI;
+      arrangedEmployees.push({
+        ...employee,
+        x: companyX + employeeRadius * Math.cos(angle),
+        y: companyY + employeeRadius * Math.sin(angle)
+      });
+    });
+
+    return arrangedEmployees;
   };
 
   // 初始化
@@ -412,6 +484,11 @@ export const EventGraph: React.FC<EventGraphProps> = ({
                     refX="10" refY="3.5" orient="auto">
                     <polygon points="0 0, 10 3.5, 0 7" fill="#3b82f6" />
                   </marker>
+
+                  {/* 定义虚线样式 */}
+                  <pattern id="companyPattern" patternUnits="userSpaceOnUse" width="8" height="8">
+                    <circle cx="4" cy="4" r="3" fill="none" stroke="#3b82f6" strokeWidth="1" />
+                  </pattern>
                 </defs>
                 <rect width="100%" height="100%" fill="url(#progressGrid)" />
 
@@ -421,20 +498,36 @@ export const EventGraph: React.FC<EventGraphProps> = ({
                   const companyY = company.y;
                   const employeeCount = company.employees.length;
 
-                  // 计算员工环绕的半径
-                  const radius = 120;
+                  // 根据公司类型计算员工排列
+                  let arrangedEmployees = [];
+                  if (company.type === 'centralized') {
+                    // 集权式公司按层级排列
+                    arrangedEmployees = arrangeEmployeesForCentralizedCompany(company.employees, companyX, companyY);
+                  } else {
+                    // 去中心化公司按圆形排列
+                    const radius = 120;
+                    arrangedEmployees = company.employees.map((employee, empIndex) => {
+                      const angle = (empIndex / employeeCount) * 2 * Math.PI;
+                      return {
+                        ...employee,
+                        x: companyX + radius * Math.cos(angle),
+                        y: companyY + radius * Math.sin(angle)
+                      };
+                    });
+                  }
 
                   return (
                     <g key={company.id}>
-                      {/* 公司背景圆 */}
+                      {/* 公司虚线环 */}
                       <circle
                         cx={companyX}
                         cy={companyY}
-                        r="50"
-                        fill={company.type === 'centralized' ? '#3b82f6' : '#10b981'}
+                        r="60"
+                        fill="none"
+                        stroke={company.type === 'centralized' ? '#3b82f6' : '#10b981'}
+                        strokeWidth="2"
+                        strokeDasharray="5,5"
                         opacity={company.isActive ? 1 : 0.6}
-                        stroke={selectedCompany?.id === company.id ? '#f59e0b' : 'none'}
-                        strokeWidth={selectedCompany?.id === company.id ? 3 : 0}
                         className={isAnimating ? 'animate-pulse' : ''}
                         onClick={() => handleCompanyClick(company)}
                       />
@@ -442,11 +535,11 @@ export const EventGraph: React.FC<EventGraphProps> = ({
                       {/* 公司名称 */}
                       <text
                         x={companyX}
-                        y={companyY}
+                        y={companyY - 70}
                         textAnchor="middle"
                         fontSize="16"
                         fontWeight="bold"
-                        fill="#ffffff"
+                        fill="#1e293b"
                         className="pointer-events-none select-none"
                       >
                         {company.name}
@@ -454,39 +547,36 @@ export const EventGraph: React.FC<EventGraphProps> = ({
 
                       <text
                         x={companyX}
-                        y={companyY + 20}
+                        y={companyY - 50}
                         textAnchor="middle"
                         fontSize="12"
-                        fill="#ffffff"
+                        fill="#1e293b"
                         className="pointer-events-none select-none"
                       >
                         ¥{company.funds.toLocaleString()}
                       </text>
 
-                      {/* 员工节点环绕公司 */}
-                      {company.employees.map((employee, empIndex) => {
-                        // 计算员工节点位置（围绕公司的圆形排列）
-                        const angle = (empIndex / employeeCount) * 2 * Math.PI;
-                        const empX = companyX + radius * Math.cos(angle);
-                        const empY = companyY + radius * Math.sin(angle);
-
+                      {/* 员工节点 */}
+                      {arrangedEmployees.map((employee) => {
                         return (
                           <g key={employee.id}>
                             {/* 员工节点 */}
                             <circle
-                              cx={empX}
-                              cy={empY}
+                              cx={employee.x}
+                              cy={employee.y}
                               r={employee.role === 'ceo' ? 20 : employee.role === 'manager' ? 15 : 12}
                               fill={getEmployeeColor(employee.role)}
                               stroke={selectedEmployee?.id === employee.id ? '#f59e0b' : '#ffffff'}
                               strokeWidth={selectedEmployee?.id === employee.id ? 3 : 1}
                               onClick={() => handleEmployeeClick(employee)}
+                              onMouseDown={(e) => handleNodeMouseDown(e, 'employee', employee.id)}
+                              className="draggable cursor-move"
                             />
 
                             {/* 员工名称 */}
                             <text
-                              x={empX}
-                              y={empY + (employee.role === 'ceo' ? 30 : employee.role === 'manager' ? 25 : 20)}
+                              x={employee.x}
+                              y={employee.y + (employee.role === 'ceo' ? 30 : employee.role === 'manager' ? 25 : 20)}
                               textAnchor="middle"
                               fontSize="10"
                               fill="#1e293b"
@@ -497,8 +587,8 @@ export const EventGraph: React.FC<EventGraphProps> = ({
 
                             {/* 员工角色标签 */}
                             <text
-                              x={empX}
-                              y={empY}
+                              x={employee.x}
+                              y={employee.y}
                               textAnchor="middle"
                               fontSize="8"
                               fontWeight="bold"
@@ -509,11 +599,9 @@ export const EventGraph: React.FC<EventGraphProps> = ({
                             </text>
 
                             {/* 连接线 - 从员工到公司 */}
-                            <line
-                              x1={empX}
-                              y1={empY}
-                              x2={companyX}
-                              y2={companyY}
+                            <path
+                              d={`M ${employee.x} ${employee.y} Q ${(employee.x + companyX) / 2} ${(employee.y + companyY) / 2 - 30} ${companyX} ${companyY}`}
+                              fill="none"
                               stroke="#94a3b8"
                               strokeWidth="1"
                               strokeDasharray="5,5"
@@ -529,7 +617,7 @@ export const EventGraph: React.FC<EventGraphProps> = ({
                                   repeatCount="indefinite"
                                 />
                               )}
-                            </line>
+                            </path>
                           </g>
                         );
                       })}
@@ -538,7 +626,7 @@ export const EventGraph: React.FC<EventGraphProps> = ({
                       {[...company.events, ...company.decisions].map((item, itemIndex) => {
                         // 计算事件/决策节点位置（在员工环的外围）
                         const itemCount = company.events.length + company.decisions.length;
-                        const outerRadius = radius + 80; // 比员工环再大一些
+                        const outerRadius = 200; // 比员工环再大一些
                         const itemAngle = (itemIndex / itemCount) * 2 * Math.PI;
                         const itemX = companyX + outerRadius * Math.cos(itemAngle);
                         const itemY = companyY + outerRadius * Math.sin(itemAngle);
@@ -554,6 +642,8 @@ export const EventGraph: React.FC<EventGraphProps> = ({
                               r="8"
                               fill={getItemColor(item, isDecision ? 'decision' : 'event')}
                               onClick={() => handleEventClick(item)}
+                              onMouseDown={(e) => handleNodeMouseDown(e, 'event', item.id)}
+                              className="draggable cursor-move"
                             />
 
                             {/* 事件/决策时间标签 */}
@@ -569,11 +659,9 @@ export const EventGraph: React.FC<EventGraphProps> = ({
                             </text>
 
                             {/* 连接线 - 从事件/决策到公司 */}
-                            <line
-                              x1={itemX}
-                              y1={itemY}
-                              x2={companyX}
-                              y2={companyY}
+                            <path
+                              d={`M ${itemX} ${itemY} Q ${(itemX + companyX) / 2} ${(itemY + companyY) / 2 + 30} ${companyX} ${companyY}`}
+                              fill="none"
                               stroke={isDecision ? "#8b5cf6" : "#22c55e"}
                               strokeWidth="1"
                               strokeDasharray="3,3"
@@ -588,7 +676,7 @@ export const EventGraph: React.FC<EventGraphProps> = ({
                                   repeatCount="indefinite"
                                 />
                               )}
-                            </line>
+                            </path>
                           </g>
                         );
                       })}
@@ -736,11 +824,11 @@ export const EventGraph: React.FC<EventGraphProps> = ({
                 <CardContent className="space-y-2">
                   <div className="space-y-2 text-xs">
                     <div className="flex items-center gap-2">
-                      <div className="w-4 h-4 bg-blue-500 rounded-full"></div>
+                      <div className="w-4 h-4 border-2 border-blue-500 border-dashed rounded-full"></div>
                       <span>集权式公司</span>
                     </div>
                     <div className="flex items-center gap-2">
-                      <div className="w-4 h-4 bg-green-500 rounded-full"></div>
+                      <div className="w-4 h-4 border-2 border-green-500 border-dashed rounded-full"></div>
                       <span>去中心化公司</span>
                     </div>
                     <div className="flex items-center gap-2">
@@ -772,7 +860,7 @@ export const EventGraph: React.FC<EventGraphProps> = ({
                     </span>
                   </div>
                   <div className="flex justify-between text-xs">
-                    <span>总员工数</span>
+                    <span>总数</span>
                     <span className="font-medium text-orange-600">
                       {companies.reduce((sum, c) => sum + c.employees.length, 0)}
                     </span>

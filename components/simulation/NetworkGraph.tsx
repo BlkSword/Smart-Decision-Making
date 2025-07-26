@@ -62,28 +62,28 @@ const NetworkGraph: React.FC<NetworkGraphProps> = ({
   const optimizeData = React.useCallback(() => {
     let processedNodes = [...nodes];
     let processedLinks = [...links];
-    
+
     // 首先验证和清理数据
     const nodeIds = new Set(processedNodes.map(n => n.id));
     processedLinks = processedLinks.filter(link => {
       const sourceId = typeof link.source === 'string' ? link.source : link.source.id;
       const targetId = typeof link.target === 'string' ? link.target : link.target.id;
-      
+
       // 确保source和target都存在
       if (!sourceId || !targetId) {
         console.warn('Link missing source or target:', link);
         return false;
       }
-      
+
       // 确保引用的节点存在
       if (!nodeIds.has(sourceId) || !nodeIds.has(targetId)) {
         console.warn('Link references non-existent node:', { sourceId, targetId, availableNodes: Array.from(nodeIds) });
         return false;
       }
-      
+
       return true;
     });
-    
+
     // 如果节点数量超过限制，实现分层
     if (nodes.length > maxNodes) {
       // 优先级排序：公司 > CEO > 经理 > 员工
@@ -99,7 +99,7 @@ const NetworkGraph: React.FC<NetworkGraphProps> = ({
         },
         'decision': 400
       };
-      
+
       processedNodes = nodes
         .map(node => ({
           ...node,
@@ -107,7 +107,7 @@ const NetworkGraph: React.FC<NetworkGraphProps> = ({
         }))
         .sort((a, b) => (b as any).priority - (a as any).priority)
         .slice(0, maxNodes);
-      
+
       // 重新过滤相关连接
       const visibleNodeIds = new Set(processedNodes.map(n => n.id));
       processedLinks = processedLinks.filter(link => {
@@ -116,26 +116,26 @@ const NetworkGraph: React.FC<NetworkGraphProps> = ({
         return visibleNodeIds.has(sourceId) && visibleNodeIds.has(targetId);
       });
     }
-    
+
     // 根据缩放级别调整细节层次
     if (performanceMode && zoomLevel < 0.5) {
       // 低缩放级别时只显示重要节点
-      processedNodes = processedNodes.filter(node => 
-        node.type === 'company' || 
+      processedNodes = processedNodes.filter(node =>
+        node.type === 'company' ||
         (node.type === 'employee' && (node.role === 'ceo' || node.role === 'manager'))
       );
-      
+
       const importantNodeIds = new Set(processedNodes.map(n => n.id));
-      processedLinks = processedLinks.filter(link => 
+      processedLinks = processedLinks.filter(link =>
         importantNodeIds.has(typeof link.source === 'string' ? link.source : link.source.id) &&
         importantNodeIds.has(typeof link.target === 'string' ? link.target : link.target.id)
       );
     }
-    
+
     setVisibleNodes(processedNodes);
     setVisibleLinks(processedLinks);
   }, [nodes, links, maxNodes, performanceMode, zoomLevel]);
-  
+
   // 数据变化时重新优化
   useEffect(() => {
     optimizeData();
@@ -146,7 +146,7 @@ const NetworkGraph: React.FC<NetworkGraphProps> = ({
       setIsRendering(false);
       return;
     }
-    
+
     setIsRendering(true);
 
     const svg = d3.select(svgRef.current);
@@ -190,7 +190,7 @@ const NetworkGraph: React.FC<NetworkGraphProps> = ({
 
     // 添加箭头标记
     const defs = svg.append('defs');
-    
+
     const arrowTypes = [
       { id: 'hierarchy', color: '#3b82f6' },
       { id: 'decision', color: '#ef4444' },
@@ -369,19 +369,19 @@ const NetworkGraph: React.FC<NetworkGraphProps> = ({
       .on('mouseenter', (event, d) => {
         setHoveredNode(d);
         onNodeHover?.(d);
-        
+
         // 高亮相关连接 - 使用优化后的数据
         linkElements
           .attr('stroke-opacity', link => {
             return (link.source === d || link.target === d) ? 1 : 0.1;
           });
-        
+
         // 高亮相关节点
         nodeElements
           .select('circle')
           .attr('opacity', node => {
             if (node === d) return 1;
-            const isConnected = visibleLinks.some(link => 
+            const isConnected = visibleLinks.some(link =>
               (link.source === node && link.target === d) ||
               (link.source === d && link.target === node)
             );
@@ -391,10 +391,10 @@ const NetworkGraph: React.FC<NetworkGraphProps> = ({
       .on('mouseleave', () => {
         setHoveredNode(null);
         onNodeHover?.(null);
-        
+
         // 恢复所有连接的透明度
         linkElements.attr('stroke-opacity', d => d.status === 'active' ? 0.8 : 0.3);
-        
+
         // 恢复所有节点的透明度
         nodeElements.select('circle').attr('opacity', 1);
       });
@@ -428,7 +428,7 @@ const NetworkGraph: React.FC<NetworkGraphProps> = ({
         className={`border rounded-lg ${darkMode ? 'border-gray-600 bg-gradient-to-br from-gray-800 to-gray-900' : 'border-gray-200 bg-gradient-to-br from-gray-50 to-gray-100'}`}
       >
       </svg>
-      
+
       {/* 加载指示器 */}
       {isRendering && (
         <div className={`absolute inset-0 ${darkMode ? 'bg-gray-900' : 'bg-white'} bg-opacity-50 flex items-center justify-center`}>
@@ -438,7 +438,7 @@ const NetworkGraph: React.FC<NetworkGraphProps> = ({
           </div>
         </div>
       )}
-      
+
       {/* 性能统计 */}
       {performanceMode && (
         <div className="absolute top-2 left-2 bg-black bg-opacity-70 text-white text-xs p-2 rounded">
@@ -447,11 +447,11 @@ const NetworkGraph: React.FC<NetworkGraphProps> = ({
           <div>缩放: {(zoomLevel * 100).toFixed(0)}%</div>
         </div>
       )}
-      
+
       {/* 图例 */}
       <div className={`absolute top-4 left-4 ${darkMode ? 'bg-gray-800 border-gray-600' : 'bg-white border-gray-200'} p-4 rounded-lg shadow-lg border z-10`}>
         <h3 className={`font-semibold text-sm mb-3 ${darkMode ? 'text-white' : 'text-gray-900'}`}>图例</h3>
-        
+
         <div className={`space-y-2 text-xs ${darkMode ? 'text-gray-300' : 'text-gray-700'}`}>
           <div className="flex items-center space-x-2">
             <div className="w-4 h-4 rounded-full bg-blue-500"></div>
@@ -474,7 +474,7 @@ const NetworkGraph: React.FC<NetworkGraphProps> = ({
             <span>员工</span>
           </div>
         </div>
-        
+
         <div className="mt-3 pt-3 border-t space-y-1 text-xs">
           <div className="flex items-center space-x-2">
             <div className="w-4 h-1 bg-blue-500"></div>

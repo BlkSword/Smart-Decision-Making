@@ -1,3 +1,6 @@
+# uvicorn main:app --host 0.0.0.0 --port 8000 --reload
+
+
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
@@ -13,7 +16,7 @@ from dataclasses import asdict
 # Load environment variables
 load_dotenv()
 
-from routers import companies, employees, decisions, simulation, cache, streams, cluster, monitoring, territories
+from routers import companies, employees, decisions, simulation, cache, streams, cluster, monitoring
 from core.websocket_manager import ConnectionManager
 from core.ai_client import AIClient
 from core.game_engine import GameEngine
@@ -95,8 +98,6 @@ app.include_router(cache.router, prefix="/api/cache", tags=["cache"])
 app.include_router(streams.router, prefix="/api/streams", tags=["streams"])
 app.include_router(cluster.router, prefix="/api/cluster", tags=["cluster"])
 app.include_router(monitoring.router, prefix="/api/monitoring", tags=["monitoring"])
-app.include_router(territories.router, prefix="/api", tags=["territories"])
-# situation路由已移除
 
 @app.get("/")
 async def root():

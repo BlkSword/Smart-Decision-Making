@@ -371,26 +371,6 @@ export const AILogPanel: React.FC<AILogPanelProps> = ({ companyId }) => {
                       </div>
                     )}
 
-                    {/* 投票信息 */}
-                    {(() => {
-                      const decision = decisionsData.find(d => d.id === log.id);
-                      if (decision && decision.decision_type === 'collaborative') {
-                        return (
-                          <div className="mb-2 p-2 bg-gray-50 rounded">
-                            <div className="flex items-center gap-4 text-xs">
-                              <span className="text-green-600">支持: {decision.votes_for}</span>
-                              <span className="text-red-600">反对: {decision.votes_against}</span>
-                              <span className="text-gray-600">弃权: {decision.abstentions}</span>
-                              <span className={`font-bold ${getVoteResultColor(decision.vote_result)}`}>
-                                {getVoteResultText(decision.vote_result)}
-                              </span>
-                            </div>
-                          </div>
-                        );
-                      }
-                      return null;
-                    })()}
-
                     <div className="flex items-center justify-between text-xs text-muted-foreground">
                       <div className="flex items-center gap-4">
                         <span>模型: {log.model}</span>

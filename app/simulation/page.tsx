@@ -42,6 +42,33 @@ interface SimulationStatus {
   };
 }
 
+// 添加游戏总结数据接口
+interface GameSummary {
+  total_rounds: number;
+  total_companies: number;
+  total_employees: number;
+  total_decisions: number;
+  total_events: number;
+  ai_cost: number;
+  ai_calls: number;
+  start_time?: string;
+  end_time?: string;
+  game_duration?: number;
+  companies: {
+    [key: string]: {
+      name: string;
+      type: string;
+      funds: number;
+      employees_count: number;
+      decisions_count: number;
+      events_count: number;
+      avg_employee_level: number;
+      total_experience: number;
+      is_active: boolean;
+    }
+  };
+}
+
 export default function SimulationPage() {
   const [companies, setCompanies] = useState<Company[]>([]);
   const [simulationStatus, setSimulationStatus] = useState<SimulationStatus | null>(null);
@@ -59,6 +86,10 @@ export default function SimulationPage() {
   const [autoRefreshEnabled, setAutoRefreshEnabled] = useState(false);
   const [wsStatus, setWsStatus] = useState('disconnected');
   const [wsError, setWsError] = useState<string | null>(null);
+  // 添加游戏总结相关的状态
+  const [showGameSummary, setShowGameSummary] = useState(false);
+  const [gameSummary, setGameSummary] = useState<GameSummary | null>(null);
+  const [summaryLoading, setSummaryLoading] = useState(false);
 
   // 初始化WebSocket连接
   useEffect(() => {
@@ -196,9 +227,33 @@ export default function SimulationPage() {
 
   // 移除了自动刷新功能 - 改为纯事件驱动更新
 
-  // 控制模拟
-  const controlSimulation = async (action: 'start' | 'pause' | 'resume' | 'stop') => {
+  // 修改控制模拟函数，添加end功能
+  const controlSimulation = async (action: 'start' | 'pause' | 'resume' | 'stop' | 'end') => {
     try {
+      // 特殊处理end操作
+      if (action === 'end') {
+        setSummaryLoading(true);
+        const response = await fetch('/api/simulation/stop', {
+          method: 'POST',
+        });
+
+        if (response.ok) {
+          // 获取游戏总结数据
+          const statsResponse = await fetch('/api/simulation/stats');
+          if (statsResponse.ok) {
+            const statsData = await statsResponse.json();
+            setGameSummary(statsData);
+            setShowGameSummary(true);
+          }
+          await loadSimulationData(false, false);
+        } else {
+          const errorData = await response.json();
+          setError(errorData.detail || 'Failed to end simulation');
+        }
+        setSummaryLoading(false);
+        return;
+      }
+
       const response = await fetch(`/api/simulation/${action}`, {
         method: 'POST',
       });
@@ -330,6 +385,114 @@ export default function SimulationPage() {
     return <LoadingAnimation />;
   }
 
+  // 添加渲染游戏总结的函数
+  const renderGameSummary = () => {
+    if (!gameSummary) return null;
+
+    return (
+      <Dialog open={showGameSummary} onOpenChange={setShowGameSummary}>
+        <DialogContent className="max-w-4xl max-h-[80vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>游戏总结</DialogTitle>
+            <DialogDescription>
+              本轮游戏已完成，以下是详细统计数据
+            </DialogDescription>
+          </DialogHeader>
+          
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 py-4">
+            <Card>
+              <CardContent className="p-4">
+                <div className="text-sm text-gray-500 mb-1">总轮次</div>
+                <div className="text-2xl font-bold">{gameSummary.total_rounds}</div>
+              </CardContent>
+            </Card>
+            
+            <Card>
+              <CardContent className="p-4">
+                <div className="text-sm text-gray-500 mb-1">参与公司</div>
+                <div className="text-2xl font-bold">{gameSummary.total_companies}</div>
+              </CardContent>
+            </Card>
+            
+            <Card>
+              <CardContent className="p-4">
+                <div className="text-sm text-gray-500 mb-1">员工总数</div>
+                <div className="text-2xl font-bold">{gameSummary.total_employees}</div>
+              </CardContent>
+            </Card>
+            
+            <Card>
+              <CardContent className="p-4">
+                <div className="text-sm text-gray-500 mb-1">决策总数</div>
+                <div className="text-2xl font-bold">{gameSummary.total_decisions}</div>
+              </CardContent>
+            </Card>
+            
+            <Card>
+              <CardContent className="p-4">
+                <div className="text-sm text-gray-500 mb-1">AI调用次数</div>
+                <div className="text-2xl font-bold">{gameSummary.ai_calls}</div>
+              </CardContent>
+            </Card>
+            
+            <Card>
+              <CardContent className="p-4">
+                <div className="text-sm text-gray-500 mb-1">AI总费用</div>
+                <div className="text-2xl font-bold">${gameSummary.ai_cost.toFixed(4)}</div>
+              </CardContent>
+            </Card>
+          </div>
+          
+          <div className="py-2">
+            <h3 className="text-lg font-semibold mb-2">公司详情</h3>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              {Object.entries(gameSummary.companies).map(([companyId, company]) => (
+                <Card key={companyId}>
+                  <CardContent className="p-4">
+                    <div className="flex justify-between items-start">
+                      <div>
+                        <h4 className="font-semibold">{company.name}</h4>
+                        <p className="text-sm text-gray-500 capitalize">
+                          {company.type === 'centralized' ? '集权式' : '去中心化'}公司
+                        </p>
+                      </div>
+                      <Badge variant={company.is_active ? "default" : "secondary"}>
+                        {company.is_active ? '活跃' : '非活跃'}
+                      </Badge>
+                    </div>
+                    
+                    <div className="mt-3 grid grid-cols-2 gap-2 text-sm">
+                      <div>
+                        <span className="text-gray-500">资金:</span>
+                        <span className="font-medium ml-1">${company.funds.toFixed(2)}</span>
+                      </div>
+                      <div>
+                        <span className="text-gray-500">员工数:</span>
+                        <span className="font-medium ml-1">{company.employees_count}</span>
+                      </div>
+                      <div>
+                        <span className="text-gray-500">决策数:</span>
+                        <span className="font-medium ml-1">{company.decisions_count}</span>
+                      </div>
+                      <div>
+                        <span className="text-gray-500">事件数:</span>
+                        <span className="font-medium ml-1">{company.events_count}</span>
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
+              ))}
+            </div>
+          </div>
+          
+          <DialogFooter>
+            <Button onClick={() => setShowGameSummary(false)}>关闭</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    );
+  };
+
   return (
     <div
       className="container mx-auto p-6 space-y-6"
@@ -338,9 +501,9 @@ export default function SimulationPage() {
       {/* 头部控制区 */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-3xl font-bold">AI商战模拟</h1>
+          <h1 className="text-3xl font-bold"> </h1>
           <p className="text-muted-foreground">
-            观察集权与去中心化公司的决策差异
+            系统控制台
           </p>
         </div>
 
@@ -378,13 +541,13 @@ export default function SimulationPage() {
 
           <div className="flex items-center space-x-1 text-sm">
             <div className={`w-2 h-2 rounded-full ${wsStatus === 'connected' ? 'bg-green-500' :
-                wsStatus === 'connecting' ? 'bg-yellow-500' :
-                  wsStatus === 'error' ? 'bg-red-500' :
-                    'bg-gray-400'
+              wsStatus === 'connecting' ? 'bg-yellow-500' :
+                wsStatus === 'error' ? 'bg-red-500' :
+                  'bg-gray-400'
               }`} />
             <span className={`text-xs ${wsStatus === 'connected' ? 'text-green-600' :
-                wsStatus === 'error' ? 'text-red-600' :
-                  'text-gray-500'
+              wsStatus === 'error' ? 'text-red-600' :
+                'text-gray-500'
               }`}>
               {wsStatus === 'connected' ? '实时连接' :
                 wsStatus === 'connecting' ? '连接中' :
@@ -472,6 +635,17 @@ export default function SimulationPage() {
           >
             重置游戏
           </Button>
+
+          <Button
+            onClick={() => controlSimulation('end')}
+            disabled={simulationStatus?.status === 'stopped' || summaryLoading}
+            size="sm"
+            variant="outline"
+          >
+            <Square className="h-4 w-4 mr-1" />
+            {summaryLoading ? '结束中...' : '结束'}
+          </Button>
+
         </div>
       </div>
 
@@ -611,6 +785,8 @@ export default function SimulationPage() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {renderGameSummary()}
     </div>
   );
 }

@@ -13,10 +13,10 @@ interface AnimatedNumberProps {
   suffix?: string;
 }
 
-export function AnimatedNumber({ 
-  value, 
-  duration = 1000, 
-  className, 
+export function AnimatedNumber({
+  value,
+  duration = 1000,
+  className,
   formatValue,
   decimals = 0,
   prefix = '',
@@ -37,16 +37,16 @@ export function AnimatedNumber({
 
     const animate = (currentTime: number) => {
       if (!startTimeRef.current) return;
-      
+
       const elapsed = currentTime - startTimeRef.current;
       const progress = Math.min(elapsed / duration, 1);
-      
+
       // 使用 easeOutQuart 缓动函数
       const easeOutQuart = 1 - Math.pow(1 - progress, 4);
-      
+
       const currentValue = startValueRef.current + (value - startValueRef.current) * easeOutQuart;
       setDisplayValue(currentValue);
-      
+
       if (progress < 1) {
         frameRef.current = requestAnimationFrame(animate);
       } else {
@@ -64,15 +64,15 @@ export function AnimatedNumber({
     };
   }, [value, duration, displayValue]);
 
-  const formattedValue = formatValue 
+  const formattedValue = formatValue
     ? formatValue(displayValue)
     : `${prefix}${displayValue.toFixed(decimals)}${suffix}`;
 
   return (
-    <span 
+    <span
       className={cn(
         "transition-all duration-300",
-        isAnimating && "text-primary scale-105",
+        isAnimating && "scale-105",
         className
       )}
     >
@@ -82,9 +82,9 @@ export function AnimatedNumber({
 }
 
 // 专门用于货币的动画组件
-export function AnimatedCurrency({ 
-  value, 
-  duration = 1000, 
+export function AnimatedCurrency({
+  value,
+  duration = 1000,
   className,
   currency = 'CNY',
   locale = 'zh-CN'
@@ -115,9 +115,9 @@ export function AnimatedCurrency({
 }
 
 // 用于百分比的动画组件
-export function AnimatedPercentage({ 
-  value, 
-  duration = 1000, 
+export function AnimatedPercentage({
+  value,
+  duration = 1000,
   className,
   decimals = 0
 }: {
@@ -138,9 +138,9 @@ export function AnimatedPercentage({
 }
 
 // 用于计数的动画组件
-export function AnimatedCounter({ 
-  value, 
-  duration = 800, 
+export function AnimatedCounter({
+  value,
+  duration = 800,
   className,
   prefix = '',
   suffix = ''

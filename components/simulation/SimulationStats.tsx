@@ -43,7 +43,7 @@ export function SimulationStats({ stats: initialStats, autoRefresh = true }: Sim
       if (isNaN(date.getTime())) {
         return '无效时间';
       }
-      
+
       // 使用更精确的时间格式化
       return new Intl.DateTimeFormat('zh-CN', {
         year: 'numeric',
@@ -66,13 +66,13 @@ export function SimulationStats({ stats: initialStats, autoRefresh = true }: Sim
     try {
       setLoading(true);
       setError(null);
-      
+
       // 同时获取状态数据和游戏开始时间
       const [statusResponse, eventsResponse] = await Promise.all([
         fetch('/api/simulation/status'),
         fetch('/api/simulation/events?limit=1000') // 获取所有事件，然后找到最早的事件
       ]);
-      
+
       if (statusResponse.ok) {
         const statusData = await statusResponse.json();
         setStats(statusData);
@@ -80,13 +80,13 @@ export function SimulationStats({ stats: initialStats, autoRefresh = true }: Sim
       } else {
         setError('获取数据失败');
       }
-      
+
       if (eventsResponse.ok) {
         const eventsData = await eventsResponse.json();
         // 从事件列表中找到最早的事件时间戳作为游戏开始时间
         if (eventsData.events && eventsData.events.length > 0) {
           // 按时间戳排序，找到最早的事件
-          const sortedEvents = [...eventsData.events].sort((a: any, b: any) => 
+          const sortedEvents = [...eventsData.events].sort((a: any, b: any) =>
             new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime()
           );
           setGameStartTime(sortedEvents[0].timestamp);
@@ -196,7 +196,7 @@ export function SimulationStats({ stats: initialStats, autoRefresh = true }: Sim
               <Activity className="h-4 w-4 text-gray-600" />
               <span className="text-sm font-medium">系统状态</span>
             </div>
-            <Badge 
+            <Badge
               variant="secondary"
               className={getStatusColor(stats.status)}
             >
@@ -269,9 +269,9 @@ export function SimulationStats({ stats: initialStats, autoRefresh = true }: Sim
                 <span className="text-sm font-medium">AI成本</span>
               </div>
               <div className="text-lg font-bold text-orange-600">
-                <AnimatedNumber 
-                  value={stats.ai_stats.total_cost} 
-                  formatValue={formatCost} 
+                <AnimatedNumber
+                  value={stats.ai_stats.total_cost}
+                  formatValue={formatCost}
                   decimals={4}
                 />
               </div>
@@ -303,11 +303,8 @@ export function SimulationStats({ stats: initialStats, autoRefresh = true }: Sim
                 <Clock className="h-4 w-4 text-slate-600" />
                 <span className="text-sm font-medium">已开始时间</span>
               </div>
-              <div className="text-sm text-slate-600">
-                {formatDateTime(gameStartTime)}
-              </div>
               {/* 添加运行时长显示 */}
-              <div className="text-xs text-muted-foreground mt-1">
+              <div className="text-base text-muted-foreground mt-1">
                 {(() => {
                   const startDate = new Date(gameStartTime);
                   const now = new Date();
@@ -315,7 +312,7 @@ export function SimulationStats({ stats: initialStats, autoRefresh = true }: Sim
                   const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));
                   const diffHours = Math.floor((diffMs % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
                   const diffMinutes = Math.floor((diffMs % (1000 * 60 * 60)) / (1000 * 60));
-                  
+
                   return `已运行: ${diffDays > 0 ? `${diffDays}天 ` : ''}${diffHours}小时 ${diffMinutes}分钟`;
                 })()}
               </div>

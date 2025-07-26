@@ -248,8 +248,8 @@ async def get_simulation_stats():
     
     for company in companies:
         employees = [e for e in engine.get_employees() if e.company_id == company.id]
-        decisions = [d for d in engine.get_recent_decisions(10) if d.company_id == company.id]
-        events = [e for e in engine.get_recent_events(10) if e.company_id == company.id]
+        decisions = [d for d in engine.get_recent_decisions(1000) if d.company_id == company.id]  # 获取所有决策
+        events = [e for e in engine.get_recent_events(1000) if e.company_id == company.id]  # 获取所有事件
         
         company_stats[company.id] = {
             "name": company.name,
@@ -265,7 +265,17 @@ async def get_simulation_stats():
     
     stats["companies"] = company_stats
     
-    return stats
+    # 返回游戏总结数据
+    return {
+        "total_rounds": stats["current_round"],
+        "total_companies": stats["companies_count"],
+        "total_employees": stats["employees_count"],
+        "total_decisions": stats["decisions_count"],
+        "total_events": stats["events_count"],
+        "ai_cost": stats["ai_stats"]["total_cost"] if stats["ai_stats"] else 0,
+        "ai_calls": stats["ai_stats"]["total_calls"] if stats["ai_stats"] else 0,
+        "companies": company_stats
+    }
 
 @router.put("/config")
 async def update_simulation_config(
