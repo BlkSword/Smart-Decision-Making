@@ -3,7 +3,7 @@
 import React, { useState, useEffect } from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { AnimatedCounter } from '@/components/ui/animated-number';
+import { AnimatedNumber } from '@/components/ui/animated-number';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { ScrollArea } from '@/components/ui/scroll-area';
@@ -149,12 +149,15 @@ export const CompanyDetailsModal: React.FC<CompanyDetailsModalProps> = ({
       if (decisionsResponse.ok) {
         const decisionsData = await decisionsResponse.json();
         
-        const decisions: Decision[] = decisionsData.decisions.map((decision: any) => {
+        // 确保 decisions 数组存在
+        const decisionsArray = Array.isArray(decisionsData.decisions) ? decisionsData.decisions : [];
+        
+        const decisions: Decision[] = decisionsArray.map((decision: any) => {
           // 根据投票结果确定决策状态
-          let finalStatus = decision.status;
+          let finalStatus = 'pending'; // 默认状态设为待处理
           
           // 如果有投票数据，根据投票结果决定状态
-          if (decision.votes_for !== undefined && decision.votes_against !== undefined) {
+          if (decision && decision.vote_result) {
             const voteResult = decision.vote_result;
             if (voteResult === 'approved') {
               finalStatus = 'approved';
@@ -166,12 +169,12 @@ export const CompanyDetailsModal: React.FC<CompanyDetailsModalProps> = ({
           }
           
           return {
-            id: decision.id,
+            id: decision.id || Math.random().toString(36).substr(2, 9),
             type: decision.decision_type || '未知类型',
             content: decision.content || '无内容',
             status: finalStatus,
             employee_id: decision.employee_id || '',
-            company_id: decision.company_id || '',
+            company_id: decision.company_id || companyId,
             timestamp: decision.created_at || new Date().toISOString(),
             priority: decision.importance > 2 ? 'high' : decision.importance > 1 ? 'medium' : 'low',
             impact_score: decision.impact_score || 0,
@@ -198,6 +201,7 @@ export const CompanyDetailsModal: React.FC<CompanyDetailsModalProps> = ({
           success_rate: successRate
         } : null);
       } else {
+        console.error('Error fetching decisions:', decisionsResponse.status);
         setDecisions([]);
       }
       
@@ -349,7 +353,10 @@ export const CompanyDetailsModal: React.FC<CompanyDetailsModalProps> = ({
                     <span className="text-sm text-muted-foreground">资金</span>
                     <span className="flex items-center gap-1">
                       <DollarSign className="w-4 h-4" />
-                      <AnimatedCounter value={company.funds} formatValue={(v) => v.toLocaleString()} />
+                      <AnimatedNumber 
+                        value={company.funds} 
+                        formatValue={(value) => value.toLocaleString()}
+                      />
                     </span>
                   </div>
                   <div className="flex items-center justify-between">
@@ -414,20 +421,29 @@ export const CompanyDetailsModal: React.FC<CompanyDetailsModalProps> = ({
               <CardContent>
                 <div className="grid grid-cols-3 gap-4">
                   <div className="text-center">
-                    <div className="text-2xl font-bold text-blue-600">
-                      <AnimatedCounter value={company.active_decisions} />
+                    <div className="text-2xl font-bold">
+                      <AnimatedNumber value={company.active_decisions} />
                     </div>
-                    <div className="text-sm text-muted-foreground">活跃决策</div>
+                    <p className="text-xs text-muted-foreground">
+                      活跃决策
+                    </p>
+
                   </div>
                   <div className="text-center">
-                    <div className="text-2xl font-bold text-green-600">
-                      <AnimatedCounter value={company.total_decisions} />
+                    <div className="text-2xl font-bold">
+                      <AnimatedNumber value={company.total_decisions} />
                     </div>
-                    <div className="text-sm text-muted-foreground">总决策数</div>
+                    <p className="text-xs text-muted-foreground">
+                      总决策数
+                    </p>
+
                   </div>
                   <div className="text-center">
                     <div className="text-2xl font-bold text-orange-600">
-                      <AnimatedCounter value={company.success_rate} formatValue={(v) => `${v}%`} />
+                      <AnimatedNumber 
+                        value={company.success_rate} 
+                        suffix="%"
+                      />
                     </div>
                     <div className="text-sm text-muted-foreground">成功率</div>
                   </div>

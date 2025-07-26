@@ -40,7 +40,6 @@ next-env.d.ts
 postgres_data/
 .env*.local
 
+/__pycache__/
 
-*.pyc
-/backend/__pycache__
 *.pyc

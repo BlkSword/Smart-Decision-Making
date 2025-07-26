@@ -63,31 +63,31 @@ export default function SimulationPage() {
   // 初始化WebSocket连接
   useEffect(() => {
     console.log('Initializing WebSocket connection...');
-    
+
     try {
       const ws = new WebSocketConnection();
       setWsConnection(ws);
 
       ws.onMessage = (data) => {
         console.log('WebSocket message received:', data.type, data);
-        
+
         // 处理广播事件
         if (data.type === 'broadcast') {
           console.log('Broadcast received:', data.channel, data.data);
-          
+
           // 处理游戏事件
           if (data.channel === 'game_events') {
             console.log('Game event received, refreshing data...');
             loadSimulationData(false, false);
           }
-          
+
           // 处理数据变化通知
           if (data.channel === 'data_changed') {
             console.log('Data changed event received, refreshing data...');
             loadSimulationData(false, false);
           }
         }
-        
+
         // 处理数据更新响应
         if (data.type === 'data_update') {
           console.log('Data update received, updating UI...');
@@ -100,12 +100,12 @@ export default function SimulationPage() {
           setLastUpdateTime(Date.now());
           setError(null);
         }
-        
+
         // 处理pong响应
         if (data.type === 'pong') {
           console.log('Received pong from server');
         }
-        
+
         // 处理错误
         if (data.type === 'error') {
           console.error('WebSocket error:', data.message);
@@ -118,7 +118,7 @@ export default function SimulationPage() {
         setWsStatus('connecting');
         setWsError(null);
       };
-      
+
       ws.onConnect = () => {
         console.log('✅ WebSocket connected successfully!');
         setWsStatus('connected');
@@ -159,7 +159,7 @@ export default function SimulationPage() {
       } else if (isRefresh) {
         setRefreshing(true);
       }
-      
+
       // 获取公司列表
       const companiesResponse = await fetch('/api/companies');
       if (companiesResponse.ok) {
@@ -202,7 +202,7 @@ export default function SimulationPage() {
       const response = await fetch(`/api/simulation/${action}`, {
         method: 'POST',
       });
-      
+
       if (response.ok) {
         await loadSimulationData(false, false);
       } else {
@@ -221,7 +221,7 @@ export default function SimulationPage() {
       const response = await fetch('/api/simulation/round', {
         method: 'POST',
       });
-      
+
       if (response.ok) {
         await loadSimulationData(false, false);
       } else {
@@ -233,7 +233,7 @@ export default function SimulationPage() {
       console.error('Error executing manual round:', err);
     }
   };
-  
+
   // 切换游戏模式
   const toggleGameMode = async () => {
     try {
@@ -245,7 +245,7 @@ export default function SimulationPage() {
         },
         body: JSON.stringify({ mode: newMode }),
       });
-      
+
       if (response.ok) {
         await loadSimulationData(false, false);
       } else {
@@ -257,14 +257,14 @@ export default function SimulationPage() {
       console.error('Error changing game mode:', err);
     }
   };
-  
+
   // 重置游戏
   const resetGame = async () => {
     try {
       const response = await fetch('/api/simulation/reset', {
         method: 'POST',
       });
-      
+
       if (response.ok) {
         await loadSimulationData(false, false);
         setShowResetConfirm(false);
@@ -319,8 +319,8 @@ export default function SimulationPage() {
         </div>
         <div className="flex space-x-1">
           <div className="w-2 h-2 bg-blue-600 rounded-full animate-bounce"></div>
-          <div className="w-2 h-2 bg-blue-600 rounded-full animate-bounce" style={{animationDelay: '0.1s'}}></div>
-          <div className="w-2 h-2 bg-blue-600 rounded-full animate-bounce" style={{animationDelay: '0.2s'}}></div>
+          <div className="w-2 h-2 bg-blue-600 rounded-full animate-bounce" style={{ animationDelay: '0.1s' }}></div>
+          <div className="w-2 h-2 bg-blue-600 rounded-full animate-bounce" style={{ animationDelay: '0.2s' }}></div>
         </div>
       </div>
     </div>
@@ -331,7 +331,7 @@ export default function SimulationPage() {
   }
 
   return (
-    <div 
+    <div
       className="container mx-auto p-6 space-y-6"
       onClick={handleContainerClick}
     >
@@ -343,13 +343,13 @@ export default function SimulationPage() {
             观察集权与去中心化公司的决策差异
           </p>
         </div>
-        
+
         <div className="flex items-center space-x-2">
           {simulationStatus && (
             <>
               <Badge variant={simulationStatus.status === 'running' ? 'default' : 'secondary'}>
-                {simulationStatus.status === 'running' ? '运行中' : 
-                 simulationStatus.status === 'paused' ? '已暂停' : '已停止'}
+                {simulationStatus.status === 'running' ? '运行中' :
+                  simulationStatus.status === 'paused' ? '已暂停' : '已停止'}
               </Badge>
               <Badge variant="outline">
                 {simulationStatus.mode === 'auto' ? '自动模式' : '手动模式'}
@@ -359,9 +359,8 @@ export default function SimulationPage() {
               </Badge>
             </>
           )}
-          
-          {/* 时间线按钮已移除 */}
-          
+
+
           <Button
             onClick={() => loadSimulationData(false, true)}
             size="sm"
@@ -371,31 +370,29 @@ export default function SimulationPage() {
             <RefreshCw className={`h-4 w-4 mr-1 ${refreshing ? 'animate-spin' : ''}`} />
             {refreshing ? '刷新中...' : '手动刷新'}
           </Button>
-          
+
           <div className="flex items-center space-x-1 text-sm text-muted-foreground">
             <Clock className="h-4 w-4" />
             <span>最新更新: {new Date(lastUpdateTime).toLocaleTimeString()}</span>
           </div>
-          
+
           <div className="flex items-center space-x-1 text-sm">
-            <div className={`w-2 h-2 rounded-full ${
-              wsStatus === 'connected' ? 'bg-green-500' : 
-              wsStatus === 'connecting' ? 'bg-yellow-500' : 
-              wsStatus === 'error' ? 'bg-red-500' : 
-              'bg-gray-400'
-            }`} />
-            <span className={`text-xs ${
-              wsStatus === 'connected' ? 'text-green-600' : 
-              wsStatus === 'error' ? 'text-red-600' : 
-              'text-gray-500'
-            }`}>
-              {wsStatus === 'connected' ? '实时连接' : 
-               wsStatus === 'connecting' ? '连接中' : 
-               wsStatus === 'error' ? '连接失败' : 
-               '未连接'}
+            <div className={`w-2 h-2 rounded-full ${wsStatus === 'connected' ? 'bg-green-500' :
+                wsStatus === 'connecting' ? 'bg-yellow-500' :
+                  wsStatus === 'error' ? 'bg-red-500' :
+                    'bg-gray-400'
+              }`} />
+            <span className={`text-xs ${wsStatus === 'connected' ? 'text-green-600' :
+                wsStatus === 'error' ? 'text-red-600' :
+                  'text-gray-500'
+              }`}>
+              {wsStatus === 'connected' ? '实时连接' :
+                wsStatus === 'connecting' ? '连接中' :
+                  wsStatus === 'error' ? '连接失败' :
+                    '未连接'}
             </span>
           </div>
-          
+
           <Button
             onClick={() => controlSimulation('start')}
             disabled={simulationStatus?.status === 'running'}
@@ -404,7 +401,7 @@ export default function SimulationPage() {
             <Play className="h-4 w-4 mr-1" />
             启动
           </Button>
-          
+
           <Button
             onClick={() => controlSimulation(simulationStatus?.status === 'running' ? 'pause' : 'resume')}
             disabled={simulationStatus?.status === 'stopped'}
@@ -423,7 +420,7 @@ export default function SimulationPage() {
               </>
             )}
           </Button>
-          
+
           <Button
             onClick={() => controlSimulation('stop')}
             disabled={simulationStatus?.status === 'stopped'}
@@ -433,7 +430,7 @@ export default function SimulationPage() {
             <Square className="h-4 w-4 mr-1" />
             停止
           </Button>
-          
+
           {/* 手动轮次控制按钮 */}
           {simulationStatus?.mode === 'manual' && (
             <Button
@@ -446,7 +443,7 @@ export default function SimulationPage() {
               执行轮次
             </Button>
           )}
-          
+
           {simulationStatus?.mode === 'auto' && (
             <Button
               onClick={manualRound}
@@ -458,7 +455,7 @@ export default function SimulationPage() {
               手动轮次
             </Button>
           )}
-          
+
           <Button
             onClick={toggleGameMode}
             disabled={simulationStatus?.status === 'stopped'}
@@ -467,7 +464,7 @@ export default function SimulationPage() {
           >
             {simulationStatus?.mode === 'auto' ? '切换到手动' : '切换到自动'}
           </Button>
-          
+
           <Button
             onClick={() => setShowResetConfirm(true)}
             size="sm"
@@ -491,7 +488,7 @@ export default function SimulationPage() {
       <SimulationStats stats={simulationStatus} autoRefresh={true} />
 
       {/* 主要内容区域 */}
-      <div 
+      <div
         className="grid grid-cols-1 lg:grid-cols-4 gap-6"
         onClick={handleContainerClick}
       >
@@ -499,8 +496,8 @@ export default function SimulationPage() {
         <div className="lg:col-span-2 space-y-4">
           <div className="flex items-center justify-between">
             <h2 className="text-xl font-semibold">参与公司</h2>
-            <Button 
-              size="sm" 
+            <Button
+              size="sm"
               variant="outline"
               onClick={() => setShowCreateModal(true)}
             >
@@ -508,8 +505,8 @@ export default function SimulationPage() {
               添加公司
             </Button>
           </div>
-          
-          <div 
+
+          <div
             className="grid grid-cols-1 md:grid-cols-2 gap-4"
             onClick={handleContainerClick}
           >
@@ -523,7 +520,7 @@ export default function SimulationPage() {
               />
             ))}
           </div>
-          
+
           {companies.length === 0 && (
             <Card>
               <CardContent className="p-8 text-center">
@@ -534,7 +531,7 @@ export default function SimulationPage() {
         </div>
 
         {/* 侧边栏 1 - 决策面板和事件 */}
-        <div 
+        <div
           className="space-y-4"
           onClick={handleContainerClick}
         >
@@ -542,7 +539,7 @@ export default function SimulationPage() {
           {selectedCompany && (
             <DecisionPanel companyId={selectedCompany} />
           )}
-          
+
           {/* 事件动态 */}
           <Card>
             <CardHeader>
@@ -554,33 +551,33 @@ export default function SimulationPage() {
             </CardContent>
           </Card>
         </div>
-        
+
         {/* 侧边栏 2 - AI日志面板 */}
-        <div 
+        <div
           className="space-y-4"
           onClick={handleContainerClick}
         >
           <AILogPanel companyId={selectedCompany} />
         </div>
       </div>
-      
+
       {/* 实时事件图 */}
       <div className="mt-8">
-        <EventGraph 
-          companyId={selectedCompany} 
-          autoUpdate={true} 
-          showControls={true} 
+        <EventGraph
+          companyId={selectedCompany}
+          autoUpdate={true}
+          showControls={true}
           height={500}
         />
       </div>
-      
+
       {/* 模态框 */}
       <CreateCompanyModal
         isOpen={showCreateModal}
         onClose={() => setShowCreateModal(false)}
         onSuccess={handleCreateSuccess}
       />
-      
+
       {detailsCompanyId && (
         <CompanyDetailsModal
           isOpen={showDetailsModal}
@@ -588,7 +585,7 @@ export default function SimulationPage() {
           companyId={detailsCompanyId}
         />
       )}
-      
+
       {/* 重置游戏确认对话框 */}
       <Dialog open={showResetConfirm} onOpenChange={setShowResetConfirm}>
         <DialogContent className="sm:max-w-[425px]">
@@ -599,14 +596,14 @@ export default function SimulationPage() {
             </DialogDescription>
           </DialogHeader>
           <DialogFooter>
-            <Button 
-              variant="outline" 
+            <Button
+              variant="outline"
               onClick={() => setShowResetConfirm(false)}
             >
               取消
             </Button>
-            <Button 
-              variant="destructive" 
+            <Button
+              variant="destructive"
               onClick={resetGame}
             >
               确认重置

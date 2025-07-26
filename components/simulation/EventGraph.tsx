@@ -4,14 +4,14 @@ import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { 
-  Network, 
-  Zap, 
-  Clock, 
-  TrendingUp, 
-  Users, 
-  Building, 
-  Brain, 
+import {
+  Network,
+  Zap,
+  Clock,
+  TrendingUp,
+  Users,
+  Building,
+  Brain,
   Play,
   Pause,
   RotateCcw,
@@ -43,6 +43,14 @@ interface CompanyDecision {
   approval_rate?: number;
 }
 
+interface Employee {
+  id: string;
+  name: string;
+  role: 'ceo' | 'manager' | 'employee';
+  company_id: string;
+  status?: 'active' | 'thinking' | 'deciding' | 'idle';
+}
+
 interface CompanyProgress {
   id: string;
   name: string;
@@ -51,6 +59,7 @@ interface CompanyProgress {
   funds: number;
   events: CompanyEvent[];
   decisions: CompanyDecision[];
+  employees: Employee[];
   x: number;
   y: number;
 }
@@ -70,17 +79,18 @@ export const EventGraph: React.FC<EventGraphProps> = ({
 }) => {
   const svgRef = useRef<SVGSVGElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
-  
+
   const [companies, setCompanies] = useState<CompanyProgress[]>([]);
   const [selectedCompany, setSelectedCompany] = useState<CompanyProgress | null>(null);
   const [selectedEvent, setSelectedEvent] = useState<CompanyEvent | CompanyDecision | null>(null);
+  const [selectedEmployee, setSelectedEmployee] = useState<Employee | null>(null);
   const [isAnimating, setIsAnimating] = useState(true);
   const [scale, setScale] = useState(1);
   const [panX, setPanX] = useState(0);
   const [panY, setPanY] = useState(0);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  
+
   // 鼠标拖动状态
   const [isDragging, setIsDragging] = useState(false);
   const [dragStart, setDragStart] = useState({ x: 0, y: 0 });
@@ -90,25 +100,28 @@ export const EventGraph: React.FC<EventGraphProps> = ({
   const fetchData = async () => {
     try {
       setLoading(true);
-      
-      const [companiesRes, eventsRes, decisionsRes] = await Promise.all([
+
+      const [companiesRes, eventsRes, decisionsRes, employeesRes] = await Promise.all([
         fetch('/api/companies'),
         fetch('/api/simulation/events?limit=50'),
-        fetch('/api/simulation/decisions?limit=50')
+        fetch('/api/simulation/decisions?limit=50'),
+        fetch('/api/employees')
       ]);
-      
-      if (!companiesRes.ok || !eventsRes.ok || !decisionsRes.ok) {
+
+      if (!companiesRes.ok || !eventsRes.ok || !decisionsRes.ok || !employeesRes.ok) {
         throw new Error('Failed to fetch data');
       }
-      
+
       const companiesData = await companiesRes.json();
       const eventsData = await eventsRes.json();
       const decisionsData = await decisionsRes.json();
-      
+      const employeesData = await employeesRes.json();
+
       const companies = companiesData || [];
       const events = eventsData.events || eventsData || [];
       const decisions = decisionsData.decisions || decisionsData || [];
-      
+      const employees = employeesData || [];
+
       // 转换为进度视图格式
       const progressData = companies.map((company: any, index: number) => {
         const companyEvents = events
@@ -123,7 +136,7 @@ export const EventGraph: React.FC<EventGraphProps> = ({
             status: 'completed' as const,
             priority: (event.severity || 'low') as any
           }));
-          
+
         const companyDecisions = decisions
           .filter((decision: any) => decision.company_id === company.id)
           .slice(0, 10) // 限制决策数量
@@ -133,12 +146,22 @@ export const EventGraph: React.FC<EventGraphProps> = ({
             title: decision.decision_type || 'Decision',
             description: decision.content ? decision.content.substring(0, 80) + '...' : 'No description',
             timestamp: decision.created_at,
-            status: decision.vote_result === 'approved' ? 'approved' : 
-                   decision.vote_result === 'rejected' ? 'rejected' : 'pending' as any,
+            status: decision.vote_result === 'approved' ? 'approved' :
+              decision.vote_result === 'rejected' ? 'rejected' : 'pending' as any,
             priority: decision.importance > 2 ? 'high' : decision.importance > 1 ? 'medium' : 'low' as any,
             approval_rate: decision.approval_rate || 0
           }));
-        
+
+        const companyEmployees = employees
+          .filter((employee: any) => employee.company_id === company.id)
+          .map((employee: any) => ({
+            id: employee.id,
+            name: employee.name,
+            role: employee.role || 'employee',
+            company_id: employee.company_id,
+            status: 'active' as const
+          }));
+
         return {
           id: company.id,
           name: company.name,
@@ -147,11 +170,12 @@ export const EventGraph: React.FC<EventGraphProps> = ({
           funds: company.funds || 0,
           events: companyEvents,
           decisions: companyDecisions,
-          x: 100 + index * 300, // 水平分布
-          y: 200 // 固定垂直位置
+          employees: companyEmployees,
+          x: 400 + index * 500, // 水平分布更宽
+          y: 300 // 固定垂直位置
         };
       });
-      
+
       setCompanies(progressData);
       setError(null);
     } catch (err) {
@@ -170,10 +194,10 @@ export const EventGraph: React.FC<EventGraphProps> = ({
 
   const handleMouseMove = useCallback((event: React.MouseEvent) => {
     if (!isDragging) return;
-    
+
     const deltaX = event.clientX - dragStart.x;
     const deltaY = event.clientY - dragStart.y;
-    
+
     setPanX(lastPan.x + deltaX);
     setPanY(lastPan.y + deltaY);
   }, [isDragging, dragStart, lastPan]);
@@ -197,15 +221,24 @@ export const EventGraph: React.FC<EventGraphProps> = ({
     setPanY(0);
     setSelectedCompany(null);
     setSelectedEvent(null);
+    setSelectedEmployee(null);
   };
 
   // 节点点击处理
   const handleCompanyClick = (company: CompanyProgress) => {
     setSelectedCompany(company);
+    setSelectedEvent(null);
+    setSelectedEmployee(null);
   };
 
   const handleEventClick = (event: CompanyEvent | CompanyDecision) => {
     setSelectedEvent(event);
+    setSelectedEmployee(null);
+  };
+
+  const handleEmployeeClick = (employee: Employee) => {
+    setSelectedEmployee(employee);
+    setSelectedEvent(null);
   };
 
   // 获取事件/决策的颜色
@@ -228,6 +261,15 @@ export const EventGraph: React.FC<EventGraphProps> = ({
     }
   };
 
+  // 获取员工角色颜色
+  const getEmployeeColor = (role: string) => {
+    switch (role) {
+      case 'ceo': return '#ef4444';
+      case 'manager': return '#f59e0b';
+      default: return '#6b7280';
+    }
+  };
+
   // 格式化时间
   const formatTime = (timestamp: string) => {
     try {
@@ -245,7 +287,7 @@ export const EventGraph: React.FC<EventGraphProps> = ({
   // 初始化
   useEffect(() => {
     fetchData();
-    
+
     if (autoUpdate) {
       const interval = setInterval(fetchData, 15000);
       return () => clearInterval(interval);
@@ -309,7 +351,7 @@ export const EventGraph: React.FC<EventGraphProps> = ({
               拖动查看、缩放交互的公司事件与决策进度展示
             </CardDescription>
           </div>
-          
+
           {showControls && (
             <div className="flex items-center gap-2">
               <Button
@@ -331,18 +373,18 @@ export const EventGraph: React.FC<EventGraphProps> = ({
             </div>
           )}
         </div>
-        
+
         <div className="flex items-center gap-2 text-sm text-gray-500">
           <MousePointer2 className="h-4 w-4" />
           <span>鼠标拖动平移，滚轮缩放，点击查看详情</span>
         </div>
       </CardHeader>
-      
+
       <CardContent>
         <div className="grid grid-cols-1 lg:grid-cols-4 gap-4">
           {/* 主视图区域 */}
           <div className="lg:col-span-3">
-            <div 
+            <div
               ref={containerRef}
               className="relative border rounded-lg overflow-hidden cursor-move"
               style={{ height: `${height}px` }}
@@ -356,7 +398,7 @@ export const EventGraph: React.FC<EventGraphProps> = ({
                 ref={svgRef}
                 width="100%"
                 height="100%"
-                viewBox={`${-panX} ${-panY} ${800 / scale} ${600 / scale}`}
+                viewBox={`${-panX} ${-panY} ${1200 / scale} ${800 / scale}`}
                 className="bg-gradient-to-br from-blue-50 to-indigo-50"
               >
                 {/* 背景网格 */}
@@ -364,190 +406,199 @@ export const EventGraph: React.FC<EventGraphProps> = ({
                   <pattern id="progressGrid" width="50" height="50" patternUnits="userSpaceOnUse">
                     <path d="M 50 0 L 0 0 0 50" fill="none" stroke="#e2e8f0" strokeWidth="1" opacity="0.5" />
                   </pattern>
+
+                  {/* 添加动态线路的动画定义 */}
+                  <marker id="arrowhead" markerWidth="10" markerHeight="7"
+                    refX="10" refY="3.5" orient="auto">
+                    <polygon points="0 0, 10 3.5, 0 7" fill="#3b82f6" />
+                  </marker>
                 </defs>
                 <rect width="100%" height="100%" fill="url(#progressGrid)" />
-                
-                {/* 时间轴 */}
-                <line 
-                  x1="50" 
-                  y1="150" 
-                  x2={companies.length * 300} 
-                  y2="150" 
-                  stroke="#94a3b8" 
-                  strokeWidth="2"
-                />
-                
-                {/* 公司进度线 */}
+
+                {/* 公司节点 */}
                 {companies.map((company, companyIndex) => {
                   const companyX = company.x;
                   const companyY = company.y;
-                  
+                  const employeeCount = company.employees.length;
+
+                  // 计算员工环绕的半径
+                  const radius = 120;
+
                   return (
                     <g key={company.id}>
-                      {/* 公司节点 */}
-                      <g 
-                        className="cursor-pointer"
+                      {/* 公司背景圆 */}
+                      <circle
+                        cx={companyX}
+                        cy={companyY}
+                        r="50"
+                        fill={company.type === 'centralized' ? '#3b82f6' : '#10b981'}
+                        opacity={company.isActive ? 1 : 0.6}
+                        stroke={selectedCompany?.id === company.id ? '#f59e0b' : 'none'}
+                        strokeWidth={selectedCompany?.id === company.id ? 3 : 0}
+                        className={isAnimating ? 'animate-pulse' : ''}
                         onClick={() => handleCompanyClick(company)}
-                      >
-                        {/* 公司背景圆 */}
-                        <circle
-                          cx={companyX}
-                          cy={companyY}
-                          r="35"
-                          fill={company.type === 'centralized' ? '#3b82f6' : '#10b981'}
-                          opacity={company.isActive ? 1 : 0.6}
-                          stroke={selectedCompany?.id === company.id ? '#f59e0b' : 'none'}
-                          strokeWidth={selectedCompany?.id === company.id ? 3 : 0}
-                          className={isAnimating ? 'animate-pulse' : ''}
-                        />
-                        
-                        {/* 公司图标 */}
-                        <text
-                          x={companyX}
-                          y={companyY + 5}
-                          textAnchor="middle"
-                          fontSize="20"
-                          fill="white"
-                          className="pointer-events-none select-none"
-                        >
-                          🏢
-                        </text>
-                        
-                        {/* 公司名称 */}
-                        <text
-                          x={companyX}
-                          y={companyY + 55}
-                          textAnchor="middle"
-                          fontSize="14"
-                          fontWeight="bold"
-                          fill="#1e293b"
-                          className="pointer-events-none select-none"
-                        >
-                          {company.name}
-                        </text>
-                        
-                        {/* 资金信息 */}
-                        <text
-                          x={companyX}
-                          y={companyY + 75}
-                          textAnchor="middle"
-                          fontSize="12"
-                          fill="#64748b"
-                          className="pointer-events-none select-none"
-                        >
-                          ¥{company.funds.toLocaleString()}
-                        </text>
-                      </g>
-                      
-                      {/* 事件和决策时间线 */}
-                      <g>
-                        {/* 事件 */}
-                        {company.events.map((event, eventIndex) => {
-                          const eventX = companyX - 100 + eventIndex * 15;
-                          const eventY = companyY + 120;
-                          
-                          return (
-                            <g key={event.id}>
-                              <circle
-                                cx={eventX}
-                                cy={eventY}
-                                r="8"
-                                fill={getItemColor(event, 'event')}
-                                className="cursor-pointer hover:r-10 transition-all"
-                                onClick={() => handleEventClick(event)}
-                              />
-                              <text
-                                x={eventX}
-                                y={eventY + 20}
-                                textAnchor="middle"
-                                fontSize="8"
-                                fill="#64748b"
-                                className="pointer-events-none select-none"
-                              >
-                                {formatTime(event.timestamp).split(' ')[1]}
-                              </text>
-                            </g>
-                          );
-                        })}
-                        
-                        {/* 决策 */}
-                        {company.decisions.map((decision, decisionIndex) => {
-                          const decisionX = companyX - 100 + decisionIndex * 15;
-                          const decisionY = companyY + 170;
-                          
-                          return (
-                            <g key={decision.id}>
-                              <rect
-                                x={decisionX - 8}
-                                y={decisionY - 8}
-                                width="16"
-                                height="16"
-                                rx="2"
-                                fill={getItemColor(decision, 'decision')}
-                                className="cursor-pointer hover:opacity-80 transition-all"
-                                onClick={() => handleEventClick(decision)}
-                              />
-                              <text
-                                x={decisionX}
-                                y={decisionY + 20}
-                                textAnchor="middle"
-                                fontSize="8"
-                                fill="#64748b"
-                                className="pointer-events-none select-none"
-                              >
-                                {formatTime(decision.timestamp).split(' ')[1]}
-                              </text>
-                            </g>
-                          );
-                        })}
-                        
-                        {/* 连接线 */}
-                        <line
-                          x1={companyX - 100}
-                          y1={companyY + 120}
-                          x2={companyX + 100}
-                          y2={companyY + 120}
-                          stroke="#e2e8f0"
-                          strokeWidth="2"
-                        />
-                        <line
-                          x1={companyX - 100}
-                          y1={companyY + 170}
-                          x2={companyX + 100}
-                          y2={companyY + 170}
-                          stroke="#e2e8f0"
-                          strokeWidth="2"
-                        />
-                      </g>
-                      
-                      {/* 标签 */}
+                      />
+
+                      {/* 公司名称 */}
                       <text
-                        x={companyX - 120}
-                        y={companyY + 125}
-                        fontSize="12"
-                        fontWeight="medium"
-                        fill="#475569"
+                        x={companyX}
+                        y={companyY}
+                        textAnchor="middle"
+                        fontSize="16"
+                        fontWeight="bold"
+                        fill="#ffffff"
                         className="pointer-events-none select-none"
                       >
-                        事件
+                        {company.name}
                       </text>
+
                       <text
-                        x={companyX - 120}
-                        y={companyY + 175}
+                        x={companyX}
+                        y={companyY + 20}
+                        textAnchor="middle"
                         fontSize="12"
-                        fontWeight="medium"
-                        fill="#475569"
+                        fill="#ffffff"
                         className="pointer-events-none select-none"
                       >
-                        决策
+                        ¥{company.funds.toLocaleString()}
                       </text>
+
+                      {/* 员工节点环绕公司 */}
+                      {company.employees.map((employee, empIndex) => {
+                        // 计算员工节点位置（围绕公司的圆形排列）
+                        const angle = (empIndex / employeeCount) * 2 * Math.PI;
+                        const empX = companyX + radius * Math.cos(angle);
+                        const empY = companyY + radius * Math.sin(angle);
+
+                        return (
+                          <g key={employee.id}>
+                            {/* 员工节点 */}
+                            <circle
+                              cx={empX}
+                              cy={empY}
+                              r={employee.role === 'ceo' ? 20 : employee.role === 'manager' ? 15 : 12}
+                              fill={getEmployeeColor(employee.role)}
+                              stroke={selectedEmployee?.id === employee.id ? '#f59e0b' : '#ffffff'}
+                              strokeWidth={selectedEmployee?.id === employee.id ? 3 : 1}
+                              onClick={() => handleEmployeeClick(employee)}
+                            />
+
+                            {/* 员工名称 */}
+                            <text
+                              x={empX}
+                              y={empY + (employee.role === 'ceo' ? 30 : employee.role === 'manager' ? 25 : 20)}
+                              textAnchor="middle"
+                              fontSize="10"
+                              fill="#1e293b"
+                              className="pointer-events-none select-none"
+                            >
+                              {employee.name.length > 10 ? employee.name.substring(0, 10) + '...' : employee.name}
+                            </text>
+
+                            {/* 员工角色标签 */}
+                            <text
+                              x={empX}
+                              y={empY}
+                              textAnchor="middle"
+                              fontSize="8"
+                              fontWeight="bold"
+                              fill="#ffffff"
+                              className="pointer-events-none select-none"
+                            >
+                              {employee.role.toUpperCase()}
+                            </text>
+
+                            {/* 连接线 - 从员工到公司 */}
+                            <line
+                              x1={empX}
+                              y1={empY}
+                              x2={companyX}
+                              y2={companyY}
+                              stroke="#94a3b8"
+                              strokeWidth="1"
+                              strokeDasharray="5,5"
+                              strokeOpacity="0.6"
+                              markerEnd="url(#arrowhead)"
+                            >
+                              {isAnimating && (
+                                <animate
+                                  attributeName="stroke-dashoffset"
+                                  from="0"
+                                  to="40"
+                                  dur="3s"
+                                  repeatCount="indefinite"
+                                />
+                              )}
+                            </line>
+                          </g>
+                        );
+                      })}
+
+                      {/* 事件和决策节点 - 作为小节点显示在公司周围 */}
+                      {[...company.events, ...company.decisions].map((item, itemIndex) => {
+                        // 计算事件/决策节点位置（在员工环的外围）
+                        const itemCount = company.events.length + company.decisions.length;
+                        const outerRadius = radius + 80; // 比员工环再大一些
+                        const itemAngle = (itemIndex / itemCount) * 2 * Math.PI;
+                        const itemX = companyX + outerRadius * Math.cos(itemAngle);
+                        const itemY = companyY + outerRadius * Math.sin(itemAngle);
+
+                        const isDecision = 'approval_rate' in item;
+
+                        return (
+                          <g key={item.id}>
+                            {/* 事件/决策节点 */}
+                            <circle
+                              cx={itemX}
+                              cy={itemY}
+                              r="8"
+                              fill={getItemColor(item, isDecision ? 'decision' : 'event')}
+                              onClick={() => handleEventClick(item)}
+                            />
+
+                            {/* 事件/决策时间标签 */}
+                            <text
+                              x={itemX}
+                              y={itemY + 15}
+                              textAnchor="middle"
+                              fontSize="8"
+                              fill="#64748b"
+                              className="pointer-events-none select-none"
+                            >
+                              {formatTime(item.timestamp).split(' ')[1]}
+                            </text>
+
+                            {/* 连接线 - 从事件/决策到公司 */}
+                            <line
+                              x1={itemX}
+                              y1={itemY}
+                              x2={companyX}
+                              y2={companyY}
+                              stroke={isDecision ? "#8b5cf6" : "#22c55e"}
+                              strokeWidth="1"
+                              strokeDasharray="3,3"
+                              strokeOpacity="0.4"
+                            >
+                              {isAnimating && (
+                                <animate
+                                  attributeName="stroke-dashoffset"
+                                  from="0"
+                                  to="30"
+                                  dur="4s"
+                                  repeatCount="indefinite"
+                                />
+                              )}
+                            </line>
+                          </g>
+                        );
+                      })}
                     </g>
                   );
                 })}
               </svg>
             </div>
           </div>
-          
+
           {/* 详情面板 */}
           <div className="lg:col-span-1">
             <div className="space-y-4">
@@ -578,6 +629,10 @@ export const EventGraph: React.FC<EventGraphProps> = ({
                       <span className="font-medium">¥{selectedCompany.funds.toLocaleString()}</span>
                     </div>
                     <div className="flex justify-between text-xs">
+                      <span>员工数</span>
+                      <span className="font-medium">{selectedCompany.employees.length}</span>
+                    </div>
+                    <div className="flex justify-between text-xs">
                       <span>事件数</span>
                       <span className="font-medium">{selectedCompany.events.length}</span>
                     </div>
@@ -588,7 +643,45 @@ export const EventGraph: React.FC<EventGraphProps> = ({
                   </CardContent>
                 </Card>
               )}
-              
+
+              {/* 选中员工详情 */}
+              {selectedEmployee && (
+                <Card>
+                  <CardHeader className="pb-3">
+                    <CardTitle className="text-sm flex items-center gap-2">
+                      <Users className="h-4 w-4" />
+                      员工详情
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent className="space-y-3">
+                    <div>
+                      <h4 className="font-medium text-sm mb-1">{selectedEmployee.name}</h4>
+                    </div>
+
+                    <div className="space-y-2">
+                      <div className="flex justify-between text-xs">
+                        <span>角色</span>
+                        <Badge variant="secondary" className="text-xs">
+                          {selectedEmployee.role === 'ceo' ? 'CEO' :
+                            selectedEmployee.role === 'manager' ? '经理' : '员工'}
+                        </Badge>
+                      </div>
+                      <div className="flex justify-between text-xs">
+                        <span>状态</span>
+                        <Badge
+                          variant={selectedEmployee.status === 'active' ? 'default' : 'secondary'}
+                          className="text-xs"
+                        >
+                          {selectedEmployee.status === 'active' ? '活跃' :
+                            selectedEmployee.status === 'thinking' ? '思考中' :
+                              selectedEmployee.status === 'deciding' ? '决策中' : '空闲'}
+                        </Badge>
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
+              )}
+
               {/* 选中事件/决策详情 */}
               {selectedEvent && (
                 <Card>
@@ -603,7 +696,7 @@ export const EventGraph: React.FC<EventGraphProps> = ({
                       <h4 className="font-medium text-sm mb-1">{selectedEvent.title}</h4>
                       <p className="text-xs text-gray-600">{selectedEvent.description}</p>
                     </div>
-                    
+
                     <div className="space-y-2">
                       <div className="flex justify-between text-xs">
                         <span>状态</span>
@@ -613,7 +706,7 @@ export const EventGraph: React.FC<EventGraphProps> = ({
                       </div>
                       <div className="flex justify-between text-xs">
                         <span>优先级</span>
-                        <Badge 
+                        <Badge
                           variant={selectedEvent.priority === 'high' ? 'destructive' : 'secondary'}
                           className="text-xs"
                         >
@@ -634,7 +727,7 @@ export const EventGraph: React.FC<EventGraphProps> = ({
                   </CardContent>
                 </Card>
               )}
-              
+
               {/* 图例 */}
               <Card>
                 <CardHeader className="pb-3">
@@ -651,17 +744,21 @@ export const EventGraph: React.FC<EventGraphProps> = ({
                       <span>去中心化公司</span>
                     </div>
                     <div className="flex items-center gap-2">
-                      <div className="w-4 h-4 bg-gray-400 rounded-full"></div>
-                      <span>事件（圆形）</span>
+                      <div className="w-4 h-4 bg-gray-500 rounded-full"></div>
+                      <span>员工</span>
                     </div>
                     <div className="flex items-center gap-2">
-                      <div className="w-4 h-4 bg-yellow-500 rounded"></div>
-                      <span>决策（方形）</span>
+                      <div className="w-4 h-4 bg-green-600 rounded-full"></div>
+                      <span>事件</span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <div className="w-4 h-4 bg-purple-500 rounded-full"></div>
+                      <span>决策</span>
                     </div>
                   </div>
                 </CardContent>
               </Card>
-              
+
               {/* 统计信息 */}
               <Card>
                 <CardHeader className="pb-3">
@@ -672,6 +769,12 @@ export const EventGraph: React.FC<EventGraphProps> = ({
                     <span>活跃公司</span>
                     <span className="font-medium text-green-600">
                       {companies.filter(c => c.isActive).length}
+                    </span>
+                  </div>
+                  <div className="flex justify-between text-xs">
+                    <span>总员工数</span>
+                    <span className="font-medium text-orange-600">
+                      {companies.reduce((sum, c) => sum + c.employees.length, 0)}
                     </span>
                   </div>
                   <div className="flex justify-between text-xs">

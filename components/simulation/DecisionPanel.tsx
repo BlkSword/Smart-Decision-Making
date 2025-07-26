@@ -38,7 +38,7 @@ export function DecisionPanel({ companyId }: DecisionPanelProps) {
   const [error, setError] = useState<string | null>(null);
   const [selectedDecision, setSelectedDecision] = useState<Decision | null>(null);
   const [showVoteModal, setShowVoteModal] = useState(false);
-  const [employees, setEmployees] = useState<Record<string, {name: string, role: string}>>({});
+  const [employees, setEmployees] = useState<Record<string, { name: string, role: string }>>({});
 
   useEffect(() => {
     loadDecisions();
@@ -49,7 +49,7 @@ export function DecisionPanel({ companyId }: DecisionPanelProps) {
     try {
       setLoading(true);
       const response = await fetch(`/api/simulation/decisions?company_id=${companyId}&limit=10`);
-      
+
       if (response.ok) {
         const data = await response.json();
         setDecisions(data.decisions || []);
@@ -64,13 +64,13 @@ export function DecisionPanel({ companyId }: DecisionPanelProps) {
       setLoading(false);
     }
   };
-  
+
   const loadEmployees = async () => {
     try {
       const response = await fetch(`/api/companies/${companyId}/employees`);
       if (response.ok) {
         const data = await response.json();
-        const employeeMap: Record<string, {name: string, role: string}> = {};
+        const employeeMap: Record<string, { name: string, role: string }> = {};
         data.employees?.forEach((emp: any) => {
           employeeMap[emp.id] = { name: emp.name, role: emp.role };
         });
@@ -143,12 +143,12 @@ export function DecisionPanel({ companyId }: DecisionPanelProps) {
   const formatCost = (cost: number) => {
     return cost.toFixed(4);
   };
-  
+
   const handleDoubleClick = (decision: Decision) => {
     setSelectedDecision(decision);
     setShowVoteModal(true);
   };
-  
+
   const getVoteTypeLabel = (voteType: string) => {
     switch (voteType) {
       case 'for':
@@ -161,7 +161,7 @@ export function DecisionPanel({ companyId }: DecisionPanelProps) {
         return voteType;
     }
   };
-  
+
   const getVoteTypeColor = (voteType: string) => {
     switch (voteType) {
       case 'for':
@@ -217,7 +217,7 @@ export function DecisionPanel({ companyId }: DecisionPanelProps) {
           AI智能决策记录与执行状态
         </CardDescription>
       </CardHeader>
-      
+
       <CardContent className="p-0">
         <ScrollArea className="h-96">
           {decisions.length === 0 ? (
@@ -236,7 +236,7 @@ export function DecisionPanel({ companyId }: DecisionPanelProps) {
                   {/* 决策头部信息 */}
                   <div className="flex items-center justify-between">
                     <div className="flex items-center space-x-2">
-                      <Badge 
+                      <Badge
                         variant="secondary"
                         className={getDecisionTypeColor(decision.decision_type)}
                       >
@@ -249,18 +249,18 @@ export function DecisionPanel({ companyId }: DecisionPanelProps) {
                         </span>
                       </div>
                     </div>
-                    
+
                     <div className="flex items-center space-x-1 text-xs text-muted-foreground">
                       <User className="h-3 w-3" />
                       <span>{getRoleLabel(decision.employee_role)}</span>
                     </div>
                   </div>
-                  
+
                   {/* 决策内容 */}
                   <div className="text-sm">
                     <p className="line-clamp-3">{decision.content}</p>
                   </div>
-                  
+
                   {/* 决策指标 */}
                   <div className="flex items-center space-x-4 text-xs text-muted-foreground">
                     <div className="flex items-center space-x-1">
@@ -278,7 +278,7 @@ export function DecisionPanel({ companyId }: DecisionPanelProps) {
                       </div>
                     )}
                   </div>
-                  
+
                   {/* 投票信息（去中心化公司） */}
                   {decision.votes_for !== undefined && (
                     <div className="flex items-center space-x-4 text-xs">
@@ -290,13 +290,13 @@ export function DecisionPanel({ companyId }: DecisionPanelProps) {
                       </span>
                       {decision.vote_result && (
                         <Badge variant="outline" className="text-xs">
-                          {decision.vote_result === 'approved' ? '通过' : 
-                           decision.vote_result === 'rejected' ? '拒绝' : '平票'}
+                          {decision.vote_result === 'approved' ? '通过' :
+                            decision.vote_result === 'rejected' ? '拒绝' : '平票'}
                         </Badge>
                       )}
                     </div>
                   )}
-                  
+
                   {/* 时间和成本 */}
                   <div className="flex items-center justify-between text-xs text-muted-foreground">
                     <span>{formatDateTime(decision.created_at)}</span>
@@ -310,16 +310,16 @@ export function DecisionPanel({ companyId }: DecisionPanelProps) {
           )}
         </ScrollArea>
       </CardContent>
-      
+
       {/* 投票详情模态框 */}
       {showVoteModal && selectedDecision && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50" onClick={() => setShowVoteModal(false)}>
           <div className="bg-white rounded-lg p-6 max-w-2xl w-full mx-4 max-h-[90vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
             <div className="flex items-center justify-between mb-4">
-              <h3 className="text-xl font-semibold">决策信息</h3>
+              <h3 className="text-xl font-semibold text-black">决策信息</h3>
               <button 
                 onClick={() => setShowVoteModal(false)}
-                className="text-gray-400 hover:text-gray-600 text-xl"
+                className="text-gray-800 hover:text-gray-900 text-xl"
               >
                 ×
               </button>
@@ -328,53 +328,53 @@ export function DecisionPanel({ companyId }: DecisionPanelProps) {
             <div className="space-y-4">
               {/* 决策信息 */}
               <div>
-                <h4 className="font-medium text-base text-gray-700 mb-3">决策信息</h4>
-                <div className="bg-gray-50 p-4 rounded-lg">
-                  <div className="mb-2"><span className="font-medium text-gray-700">类型:</span> <span className="ml-2">{getDecisionTypeLabel(selectedDecision.decision_type)}</span></div>
-                  <div className="mb-2"><span className="font-medium text-gray-700">员工:</span> <span className="ml-2">{selectedDecision.employee_name} ({getRoleLabel(selectedDecision.employee_role)})</span></div>
-                  <div><span className="font-medium text-gray-700">时间:</span> <span className="ml-2">{formatDateTime(selectedDecision.created_at)}</span></div>
+                <h4 className="font-medium text-base text-gray-900 mb-3">决策信息</h4>
+                <div className="bg-gray-100 p-4 rounded-lg">
+                  <div className="mb-2"><span className="font-medium text-gray-900">类型:</span> <span className="ml-2 text-black">{getDecisionTypeLabel(selectedDecision.decision_type)}</span></div>
+                  <div className="mb-2"><span className="font-medium text-gray-900">员工:</span> <span className="ml-2 text-black">{selectedDecision.employee_name} ({getRoleLabel(selectedDecision.employee_role)})</span></div>
+                  <div><span className="font-medium text-gray-900">时间:</span> <span className="ml-2 text-black">{formatDateTime(selectedDecision.created_at)}</span></div>
                 </div>
               </div>
               
               {/* 决策内容 */}
               <div>
-                <h4 className="font-medium text-base text-gray-700 mb-3">决策内容</h4>
+                <h4 className="font-medium text-base text-gray-900 mb-3">决策内容</h4>
                 <div className="bg-blue-50 p-3 rounded text-sm max-h-32 overflow-y-auto">
-                  <div className="whitespace-pre-wrap">{selectedDecision.content}</div>
+                  <div className="whitespace-pre-wrap text-gray-900">{selectedDecision.content}</div>
                 </div>
               </div>
               
               {/* 投票统计 */}
               <div>
-                <h4 className="font-medium text-base text-gray-700 mb-3">投票统计</h4>
+                <h4 className="font-medium text-base text-gray-900 mb-3">投票统计</h4>
                 <div className="grid grid-cols-3 gap-3 mb-4">
-                  <div className="bg-green-50 p-4 rounded-lg text-center">
-                    <div className="text-green-600 font-bold text-2xl">{selectedDecision.votes_for || 0}</div>
-                    <div className="text-green-600 text-sm font-medium">支持</div>
+                  <div className="bg-green-100 p-4 rounded-lg text-center">
+                    <div className="text-green-900 font-bold text-2xl">{selectedDecision.votes_for || 0}</div>
+                    <div className="text-green-900 text-sm font-medium">支持</div>
                   </div>
-                  <div className="bg-red-50 p-4 rounded-lg text-center">
-                    <div className="text-red-600 font-bold text-2xl">{selectedDecision.votes_against || 0}</div>
-                    <div className="text-red-600 text-sm font-medium">反对</div>
+                  <div className="bg-red-100 p-4 rounded-lg text-center">
+                    <div className="text-red-900 font-bold text-2xl">{selectedDecision.votes_against || 0}</div>
+                    <div className="text-red-900 text-sm font-medium">反对</div>
                   </div>
-                  <div className="bg-gray-50 p-4 rounded-lg text-center">
-                    <div className="text-gray-600 font-bold text-2xl">{selectedDecision.abstentions || 0}</div>
-                    <div className="text-gray-600 text-sm font-medium">弃权</div>
+                  <div className="bg-gray-100 p-4 rounded-lg text-center">
+                    <div className="text-gray-900 font-bold text-2xl">{selectedDecision.abstentions || 0}</div>
+                    <div className="text-gray-900 text-sm font-medium">弃权</div>
                   </div>
                 </div>
                 
                 {/* 投票结果 */}
-                <div className="p-4 bg-gray-50 rounded-lg">
+                <div className="p-4 bg-gray-100 rounded-lg">
                   <div className="flex items-center justify-between">
                     <div>
-                      <span className="font-medium text-gray-700">结果: </span>
-                      <span className="font-bold text-lg">
+                      <span className="font-medium text-gray-900">结果: </span>
+                      <span className="font-bold text-lg text-black">
                         {selectedDecision.vote_result === 'approved' ? '通过' : 
                          selectedDecision.vote_result === 'rejected' ? '被拒绝' : 
                          selectedDecision.vote_result === 'tied' ? '平票' : '无投票'}
                       </span>
                     </div>
                     {selectedDecision.approval_rate !== undefined && (
-                      <div className="text-gray-600 font-medium">
+                      <div className="text-gray-900 font-medium">
                         通过率: {(selectedDecision.approval_rate * 100).toFixed(1)}%
                       </div>
                     )}
@@ -385,15 +385,15 @@ export function DecisionPanel({ companyId }: DecisionPanelProps) {
               {/* 投票人详情 */}
               {selectedDecision.vote_details && Object.keys(selectedDecision.vote_details).length > 0 && (
                 <div>
-                  <h4 className="font-medium text-base text-gray-700 mb-3">投票人详情</h4>
+                  <h4 className="font-medium text-base text-gray-900 mb-3">投票人详情</h4>
                   <div className="space-y-2">
                     {Object.entries(selectedDecision.vote_details).map(([employeeId, voteType]) => {
                       const employee = employees[employeeId];
                       return (
-                        <div key={employeeId} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
+                        <div key={employeeId} className="flex items-center justify-between p-3 bg-gray-100 rounded-lg">
                           <div>
                             <span className="font-medium text-gray-900">{employee?.name || employeeId}</span>
-                            <span className="text-gray-500 ml-2 text-sm">({employee?.role || '未知'})</span>
+                            <span className="text-gray-700 ml-2 text-sm">({employee?.role || '未知'})</span>
                           </div>
                           <span className={`font-bold px-2 py-1 rounded text-sm ${getVoteTypeColor(voteType)}`}>
                             {getVoteTypeLabel(voteType)}
@@ -407,9 +407,9 @@ export function DecisionPanel({ companyId }: DecisionPanelProps) {
               
               {/* 无投票信息 */}
               {(!selectedDecision.vote_details || Object.keys(selectedDecision.vote_details).length === 0) && (
-                <div className="text-center py-6 bg-gray-50 rounded-lg">
-                  <div className="text-gray-500 text-sm font-medium">该决策暂无投票记录</div>
-                  <div className="text-gray-400 text-xs mt-1">可能是非协作决策或尚未开始投票</div>
+                <div className="text-center py-6 bg-gray-100 rounded-lg">
+                  <div className="text-gray-900 text-sm font-medium">该决策暂无投票记录</div>
+                  <div className="text-gray-700 text-xs mt-1">可能是非协作决策或尚未开始投票</div>
                 </div>
               )}
             </div>

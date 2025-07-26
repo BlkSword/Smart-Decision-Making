@@ -36,6 +36,31 @@ export function SimulationStats({ stats: initialStats, autoRefresh = true }: Sim
   const [error, setError] = useState<string | null>(null);
   const [gameStartTime, setGameStartTime] = useState<string | null>(null);
 
+  // 格式化为精确时间显示（用于最后轮次时间）
+  const formatDateTime = (dateString: string) => {
+    try {
+      const date = new Date(dateString);
+      if (isNaN(date.getTime())) {
+        return '无效时间';
+      }
+      
+      // 使用更精确的时间格式化
+      return new Intl.DateTimeFormat('zh-CN', {
+        year: 'numeric',
+        month: '2-digit',
+        day: '2-digit',
+        hour: '2-digit',
+        minute: '2-digit',
+        second: '2-digit',
+        hour12: false,
+        timeZone: 'Asia/Shanghai' // 明确指定时区，避免时区问题
+      }).format(date);
+    } catch (error) {
+      console.error('Invalid date string:', dateString);
+      return '时间格式错误';
+    }
+  };
+
   // 获取模拟状态数据
   const fetchStats = async () => {
     try {
@@ -61,7 +86,7 @@ export function SimulationStats({ stats: initialStats, autoRefresh = true }: Sim
         // 从事件列表中找到最早的事件时间戳作为游戏开始时间
         if (eventsData.events && eventsData.events.length > 0) {
           // 按时间戳排序，找到最早的事件
-          const sortedEvents = eventsData.events.sort((a: any, b: any) => 
+          const sortedEvents = [...eventsData.events].sort((a: any, b: any) => 
             new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime()
           );
           setGameStartTime(sortedEvents[0].timestamp);
@@ -94,30 +119,6 @@ export function SimulationStats({ stats: initialStats, autoRefresh = true }: Sim
   // 格式化函数
   const formatCost = (cost: number) => {
     return `$${cost.toFixed(4)}`;
-  };
-
-  // 格式化为精确时间显示（用于最后轮次时间）
-  const formatDateTime = (dateString: string) => {
-    try {
-      const date = new Date(dateString);
-      if (isNaN(date.getTime())) {
-        return '无效时间';
-      }
-      
-      // 返回精确的日期时间格式，与AI调用日志一样准确
-      return date.toLocaleString('zh-CN', {
-        year: 'numeric',
-        month: '2-digit',
-        day: '2-digit',
-        hour: '2-digit',
-        minute: '2-digit',
-        second: '2-digit',
-        hour12: false
-      });
-    } catch (error) {
-      console.error('Invalid date string:', dateString);
-      return '时间格式错误';
-    }
   };
 
   const getStatusColor = (status: string) => {
@@ -304,6 +305,19 @@ export function SimulationStats({ stats: initialStats, autoRefresh = true }: Sim
               </div>
               <div className="text-sm text-slate-600">
                 {formatDateTime(gameStartTime)}
+              </div>
+              {/* 添加运行时长显示 */}
+              <div className="text-xs text-muted-foreground mt-1">
+                {(() => {
+                  const startDate = new Date(gameStartTime);
+                  const now = new Date();
+                  const diffMs = now.getTime() - startDate.getTime();
+                  const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));
+                  const diffHours = Math.floor((diffMs % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
+                  const diffMinutes = Math.floor((diffMs % (1000 * 60 * 60)) / (1000 * 60));
+                  
+                  return `已运行: ${diffDays > 0 ? `${diffDays}天 ` : ''}${diffHours}小时 ${diffMinutes}分钟`;
+                })()}
               </div>
             </CardContent>
           </Card>

@@ -78,8 +78,8 @@ export const AILogPanel: React.FC<AILogPanelProps> = ({ companyId }) => {
       if (companyId) {
         params.append('company_id', companyId);
       }
-      params.append('limit', '500'); // 增加上限到500条记录
-      
+      params.append('limit', '500');
+
       const response = await fetch(`/api/simulation/decisions?${params}`);
       if (response.ok) {
         const data = await response.json();
@@ -90,14 +90,14 @@ export const AILogPanel: React.FC<AILogPanelProps> = ({ companyId }) => {
     }
     return [];
   };
-  
+
   // 将决策数据转换为AI日志格式
   const convertDecisionToLog = (decision: DecisionData): AILogEntry => {
     const hasAIProvider = decision.ai_provider && decision.ai_provider !== null;
-    
+
     // 生成提示词内容
     const prompt = `为${decision.company_name}的${decision.employee_role}${decision.employee_name}生成${decision.decision_type}类型的决策内容`;
-    
+
     return {
       id: decision.id,
       timestamp: decision.created_at,
@@ -117,7 +117,7 @@ export const AILogPanel: React.FC<AILogPanelProps> = ({ companyId }) => {
       status: hasAIProvider ? 'success' : 'failed'
     };
   };
-  
+
   // 双击事件处理程序已移除
 
   // 定时获取真实决策数据
@@ -131,7 +131,7 @@ export const AILogPanel: React.FC<AILogPanelProps> = ({ companyId }) => {
       logEntries.sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
       setLogs(logEntries);
     };
-    
+
     loadDecisions();
 
     // 定时刷新数据
@@ -143,15 +143,15 @@ export const AILogPanel: React.FC<AILogPanelProps> = ({ companyId }) => {
   // 过滤日志
   useEffect(() => {
     let filtered = logs;
-    
+
     if (filter !== 'all') {
       filtered = filtered.filter(log => log.status === filter);
     }
-    
+
     if (companyId) {
       filtered = filtered.filter(log => log.company_id === companyId);
     }
-    
+
     setFilteredLogs(filtered);
   }, [logs, filter, companyId]);
 
@@ -210,7 +210,7 @@ export const AILogPanel: React.FC<AILogPanelProps> = ({ companyId }) => {
       second: '2-digit'
     });
   };
-  
+
   // 获取投票结果显示文本
   const getVoteResultText = (voteResult: string) => {
     switch (voteResult) {
@@ -224,7 +224,7 @@ export const AILogPanel: React.FC<AILogPanelProps> = ({ companyId }) => {
         return voteResult;
     }
   };
-  
+
   // 获取投票结果颜色
   const getVoteResultColor = (voteResult: string) => {
     switch (voteResult) {
@@ -271,7 +271,7 @@ export const AILogPanel: React.FC<AILogPanelProps> = ({ companyId }) => {
             </Button>
           </div>
         </div>
-        
+
         {/* 过滤器 */}
         <div className="flex items-center gap-2 pt-2">
           <Button
@@ -297,10 +297,10 @@ export const AILogPanel: React.FC<AILogPanelProps> = ({ companyId }) => {
           </Button>
         </div>
       </CardHeader>
-      
+
       <CardContent className="p-0">
-        <ScrollArea 
-          className="h-96" 
+        <ScrollArea
+          className="h-96"
           ref={scrollRef}
         >
           <div className="p-4 space-y-3">
@@ -331,7 +331,7 @@ export const AILogPanel: React.FC<AILogPanelProps> = ({ companyId }) => {
                       )}
                     </div>
                   </div>
-                  
+
                   <div className="space-y-2">
                     <div>
                       <span className="text-xs font-medium text-muted-foreground">
@@ -339,7 +339,7 @@ export const AILogPanel: React.FC<AILogPanelProps> = ({ companyId }) => {
                       </span>
                       <span className="text-xs ml-1">{log.request_type}</span>
                     </div>
-                    
+
                     <div>
                       <span className="text-xs font-medium text-muted-foreground">
                         提示词：
@@ -348,7 +348,7 @@ export const AILogPanel: React.FC<AILogPanelProps> = ({ companyId }) => {
                         {log.prompt}
                       </p>
                     </div>
-                    
+
                     {log.response && (
                       <div>
                         <span className="text-xs font-medium text-muted-foreground">
@@ -359,7 +359,7 @@ export const AILogPanel: React.FC<AILogPanelProps> = ({ companyId }) => {
                         </p>
                       </div>
                     )}
-                    
+
                     {log.error && (
                       <div>
                         <span className="text-xs font-medium text-red-600">
@@ -370,7 +370,7 @@ export const AILogPanel: React.FC<AILogPanelProps> = ({ companyId }) => {
                         </p>
                       </div>
                     )}
-                    
+
                     {/* 投票信息 */}
                     {(() => {
                       const decision = decisionsData.find(d => d.id === log.id);
@@ -390,7 +390,7 @@ export const AILogPanel: React.FC<AILogPanelProps> = ({ companyId }) => {
                       }
                       return null;
                     })()}
-                    
+
                     <div className="flex items-center justify-between text-xs text-muted-foreground">
                       <div className="flex items-center gap-4">
                         <span>模型: {log.model}</span>
@@ -414,7 +414,7 @@ export const AILogPanel: React.FC<AILogPanelProps> = ({ companyId }) => {
           </div>
         </ScrollArea>
       </CardContent>
-      
+
       {/* 投票详情模态框已移除 */}
     </Card>
   );
