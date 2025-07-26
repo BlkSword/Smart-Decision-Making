@@ -218,7 +218,7 @@ export const EventGraph: React.FC<EventGraphProps> = ({
             y: company.y + (event.movementY / scale)
           };
         }
-        
+
         // 处理员工节点拖动
         if (draggingNode.type === 'employee') {
           const updatedEmployees = company.employees.map(employee => {
@@ -231,19 +231,19 @@ export const EventGraph: React.FC<EventGraphProps> = ({
             }
             return employee;
           });
-          
+
           return {
             ...company,
             employees: updatedEmployees
           };
         }
-        
+
         // 处理事件节点拖动
         if (draggingNode.type === 'event') {
           // 事件节点位置存储在单独的状态中
           return company;
         }
-        
+
         return company;
       }));
     }
@@ -461,9 +461,6 @@ export const EventGraph: React.FC<EventGraphProps> = ({
               </Button>
               <Button variant="outline" size="sm" onClick={handleZoomOut}>
                 <ZoomOut className="h-4 w-4" />
-              </Button>
-              <Button variant="outline" size="sm" onClick={handleReset}>
-                <RotateCcw className="h-4 w-4" />
               </Button>
               <Button variant="outline" size="sm" onClick={fetchData}>
                 刷新数据
