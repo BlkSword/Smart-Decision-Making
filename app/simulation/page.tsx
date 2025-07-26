@@ -699,8 +699,8 @@ export default function SimulationPage() {
             <Card>
               <CardContent className="p-8 text-center">
                 <p className="text-muted-foreground">暂无公司数据，请先启动模拟系统</p>
-                <Button 
-                  className="mt-4" 
+                <Button
+                  className="mt-4"
                   onClick={() => controlSimulation('start')}
                   disabled={simulationStatus?.status === 'running'}
                 >
