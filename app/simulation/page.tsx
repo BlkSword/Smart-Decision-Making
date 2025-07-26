@@ -15,7 +15,8 @@ import { CreateCompanyModal } from '@/components/simulation/CreateCompanyModal';
 import { CompanyDetailsModal } from '@/components/simulation/CompanyDetailsModal';
 import { WebSocketConnection } from '@/lib/websocket';
 import { Play, Pause, Square, Settings, Plus, RefreshCw, Clock } from 'lucide-react';
-// Link 导入已移除
+
+
 
 interface Company {
   id: string;
@@ -42,7 +43,7 @@ interface SimulationStatus {
   };
 }
 
-// 添加游戏总结数据接口
+// 游戏总结数据接口
 interface GameSummary {
   total_rounds: number;
   total_companies: number;
@@ -86,7 +87,6 @@ export default function SimulationPage() {
   const [autoRefreshEnabled, setAutoRefreshEnabled] = useState(false);
   const [wsStatus, setWsStatus] = useState('disconnected');
   const [wsError, setWsError] = useState<string | null>(null);
-  // 添加游戏总结相关的状态
   const [showGameSummary, setShowGameSummary] = useState(false);
   const [gameSummary, setGameSummary] = useState<GameSummary | null>(null);
   const [summaryLoading, setSummaryLoading] = useState(false);
@@ -225,9 +225,6 @@ export default function SimulationPage() {
     loadSimulationData(true, false);
   }, []);
 
-  // 移除了自动刷新功能 - 改为纯事件驱动更新
-
-  // 修改控制模拟函数，添加end功能
   const controlSimulation = async (action: 'start' | 'pause' | 'resume' | 'stop' | 'end') => {
     try {
       // 特殊处理end操作
@@ -349,7 +346,6 @@ export default function SimulationPage() {
 
   // 处理点击空白处取消选中
   const handleContainerClick = (e: React.MouseEvent) => {
-    // 如果点击的是容器本身（而不是子元素），则取消选中
     if (e.target === e.currentTarget) {
       setSelectedCompany(null);
     }
@@ -633,7 +629,7 @@ export default function SimulationPage() {
       )}
 
       {/* 统计信息 */}
-      <SimulationStats stats={simulationStatus} autoRefresh={true} />
+      <SimulationStats stats={simulationStatus || undefined} autoRefresh={true} />
 
       {/* 主要内容区域 */}
       <div
@@ -705,14 +701,14 @@ export default function SimulationPage() {
           className="space-y-4"
           onClick={handleContainerClick}
         >
-          <AILogPanel companyId={selectedCompany} />
+          <AILogPanel companyId={selectedCompany || undefined} />
         </div>
       </div>
 
       {/* 实时事件图 */}
       <div className="mt-8">
         <EventGraph
-          companyId={selectedCompany}
+          companyId={selectedCompany || undefined}
           autoUpdate={true}
           showControls={true}
           height={500}

@@ -4,11 +4,22 @@
     "dev": "next dev --turbopack",
     "build": "next build",
     "start": "next start",
+    "lint": "next lint",
+    "type-check": "tsc --noEmit",
     "db:setup": "npx tsx lib/db/setup.ts",
     "db:seed": "npx tsx lib/db/seed.ts",
     "db:generate": "drizzle-kit generate",
     "db:migrate": "drizzle-kit migrate",
-    "db:studio": "drizzle-kit studio"
+    "db:studio": "drizzle-kit studio",
+    "backend:dev": "cd backend && uvicorn main:app --host 0.0.0.0 --port 8000 --reload",
+    "backend:start": "cd backend && uvicorn main:app --host 0.0.0.0 --port 8000",
+    "backend:install": "cd backend && pip install -r requirements.txt",
+    "dev:full": "concurrently \"npm run backend:dev\" \"npm run dev\"",
+    "test": "jest",
+    "test:watch": "jest --watch",
+    "clean": "rm -rf .next && rm -rf node_modules/.cache",
+    "format": "prettier --write .",
+    "format:check": "prettier --check ."
   },
   "dependencies": {
     "@radix-ui/react-dialog": "^1.1.14",
@@ -44,5 +55,14 @@
     "typescript": "^5.8.3",
     "ws": "^8.18.3",
     "zod": "^3.24.4"
+  },
+  "devDependencies": {
+    "@types/jest": "^29.5.0",
+    "concurrently": "^8.2.0",
+    "eslint": "^8.0.0",
+    "eslint-config-next": "15.4.0-canary.47",
+    "jest": "^29.5.0",
+    "prettier": "^3.0.0",
+    "ts-jest": "^29.1.0"
   }
 }
