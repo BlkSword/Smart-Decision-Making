@@ -119,7 +119,7 @@ class GameEngine:
         # 用于生成唯一员工名字的集合
         self.used_names = set()
     
-    async def initialize(self):
+    async def initialize(self, auto_start=True):
         """初始化游戏引擎"""
         logger.info("Initializing game engine...")
         
@@ -129,14 +129,30 @@ class GameEngine:
         # 创建初始公司
         await self._create_initial_companies()
         
-        self.state = GameState.RUNNING
+        # 根据参数决定是否自动开始游戏
+        if auto_start:
+            self.state = GameState.RUNNING
+            self.current_round = 0  # 确保轮次从0开始
+            # 如果是自动模式，启动自动轮次
+            if self.mode == GameMode.AUTO:
+                await self.start_auto_rounds()
+        else:
+            # 初始化完成但不自动开始
+            self.state = GameState.STOPPED
+            self.current_round = 0  # 确保轮次从0开始
+        
         self.last_round_time = datetime.now()
         
-        # 如果是自动模式，启动自动轮次
-        if self.mode == GameMode.AUTO:
-            await self.start_auto_rounds()
+        logger.info(f"Game engine initialized successfully, auto_start: {auto_start}, state: {self.state.value}")
+    
+    async def _create_initial_companies(self):
+        """创建初始公司"""
+        # 清空现有公司
+        self.companies.clear()
         
-        logger.info("Game engine initialized successfully")
+        # 只有在游戏真正开始时才创建初始公司
+        # 在初始化阶段不创建实际公司，让前端可以显示"请启动模拟系统"的提示
+        logger.info("Created empty company list for initial state")
     
     def _generate_unique_name(self, company_name: str, role: Role) -> str:
         """生成唯一的员工名字"""
@@ -169,7 +185,6 @@ class GameEngine:
         personality = random.choice(self.AI_PERSONALITIES)
         traits = []
         
-        # 添加一些具体特征
         if personality == "分析型":
             traits.extend(["喜欢深入分析数据", "重视逻辑思考", "谨慎做决定"])
         elif personality == "创新型":
@@ -381,21 +396,21 @@ class GameEngine:
         manager_employees = [emp for emp in employees if emp.role == Role.MANAGER]
         regular_employees = [emp for emp in employees if emp.role == Role.EMPLOYEE]
         
-        # 1. CEO决策
-        if ceo_employees:
-            ceo = ceo_employees[0]
-            decision = await self._make_ai_decision_with_delay(ceo, company, "executive")
-            events.append(self._create_decision_event(decision, company, "ceo_decision"))
+        # 1. 员工决策
+        for employee in regular_employees[:3]:  # 限制员工决策数量
+            decision = await self._make_ai_decision_with_delay(employee, company, "operational")
+            events.append(self._create_decision_event(decision, company, "employee_decision"))
         
         # 2. 经理决策
         for manager in manager_employees:
             decision = await self._make_ai_decision_with_delay(manager, company, "managerial")
             events.append(self._create_decision_event(decision, company, "manager_decision"))
         
-        # 3. 员工决策
-        for employee in regular_employees[:3]:  # 限制员工决策数量
-            decision = await self._make_ai_decision_with_delay(employee, company, "operational")
-            events.append(self._create_decision_event(decision, company, "employee_decision"))
+        # 3. CEO决策
+        if ceo_employees:
+            ceo = ceo_employees[0]
+            decision = await self._make_ai_decision_with_delay(ceo, company, "executive")
+            events.append(self._create_decision_event(decision, company, "ceo_decision"))
         
         # 创建层级决策完成事件
         hierarchical_event = GameEvent(
@@ -526,7 +541,13 @@ class GameEngine:
             created_at=datetime.now(),
             ai_provider=ai_response.provider.value,
             ai_model=ai_response.model,
-            cost=ai_response.cost
+            cost=ai_response.cost,
+            # 添加员工AI属性
+            employee_ai_personality=getattr(employee, 'ai_personality', None),
+            employee_decision_style=getattr(employee, 'decision_style', None),
+            employee_role=employee.role.value,
+            employee_level=employee.level,
+            employee_experience=employee.experience
         )
         
         # 为去中心化公司添加模拟投票
@@ -675,7 +696,18 @@ class GameEngine:
         elif vote_result == "rejected":
             decision.status = DecisionStatus.REJECTED
             decision.completed_at = datetime.now()
-        # 如果是平票，保持pending状态
+        else:  # 平票情况
+            # 随机决定批准或拒绝
+            import random
+            if random.choice([True, False]):
+                decision.status = DecisionStatus.COMPLETED
+                vote_result = "approved (tie broken randomly)"
+            else:
+                decision.status = DecisionStatus.REJECTED
+                vote_result = "rejected (tie broken randomly)"
+            decision.completed_at = datetime.now()
+            # 记录平票随机结果
+            decision.vote_tie_break = vote_result
     
     def _create_decision_event(self, decision: Decision, company: Company, event_type: str) -> GameEvent:
         """创建决策事件"""
@@ -787,36 +819,119 @@ class GameEngine:
         await self._update_cache_and_streams([reset_event])
         
         logger.info("Game reset completed")
-    
-    async def _create_initial_companies(self):
-        """创建初始公司"""
-        # 创建集权公司
-        centralized_company = Company(
-            id="company_centralized_001",
-            name="集权科技公司",
-            company_type=CompanyType.CENTRALIZED,
-            funds=50000,
-            size=15,
+
+    # 添加新方法：创建公司并允许指定组织类型
+    async def create_company(self, name: str, company_type: str, size: int = 10, funds: int = 50000):
+        """创建公司
+        Args:
+            name: 公司名称
+            company_type: 公司类型 ('centralized' 或 'decentralized')
+            size: 公司规模
+            funds: 初始资金
+        """
+        # 验证公司类型
+        if company_type not in ['centralized', 'decentralized']:
+            raise ValueError("公司类型必须是 'centralized' 或 'decentralized'")
+
+        # 创建公司
+        company_id = f"company_{uuid.uuid4().hex[:8]}"
+        company = Company(
+            id=company_id,
+            name=name,
+            company_type=CompanyType(company_type),
+            funds=funds,
+            size=size,
             created_at=datetime.now()
         )
-        
-        # 创建去中心化公司
-        decentralized_company = Company(
-            id="company_decentralized_001",
-            name="去中心化创新公司",
-            company_type=CompanyType.DECENTRALIZED,
-            funds=50000,
-            size=12,
-            created_at=datetime.now()
+
+        self.companies[company.id] = company
+        await self._create_employees_for_company(company)
+
+        # 发布公司创建事件
+        event = GameEvent(
+            id=f"company_created_{company.id}",
+            type="company_created",
+            timestamp=datetime.now(),
+            company_id=company.id,
+            description=f"创建公司: {company.name}",
+            data={
+                "company_id": company.id,
+                "name": company.name,
+                "type": company.company_type.value,
+                "size": company.size,
+                "funds": company.funds
+            }
         )
-        
-        self.companies[centralized_company.id] = centralized_company
-        self.companies[decentralized_company.id] = decentralized_company
-        
-        # 为每个公司创建员工
-        await self._create_employees_for_company(centralized_company)
-        await self._create_employees_for_company(decentralized_company)
-    
+        self.events.append(event)
+        await self._update_cache_and_streams([event])
+
+        return company
+
+    # 修改方法：允许自定义员工属性
+    async def create_employee(self, company_id: str, name: str, role: str, level: int,
+                             experience: int, ai_personality: str, decision_style: str):
+        """创建员工
+        Args:
+            company_id: 公司ID
+            name: 员工姓名
+            role: 员工角色 ('ceo', 'manager', 'employee')
+            level: 职业等级 (1-3)
+            experience: 工作经验
+            ai_personality: AI性格描述
+            decision_style: 决策风格
+        """
+        # 验证公司存在
+        if company_id not in self.companies:
+            raise ValueError(f"公司ID不存在: {company_id}")
+
+        # 验证角色
+        if role not in [r.value for r in Role]:
+            raise ValueError(f"无效的角色: {role}")
+
+        # 验证等级范围
+        if not 1 <= level <= 3:
+            raise ValueError("职业等级必须在1-3之间")
+
+        company = self.companies[company_id]
+        employee_id = f"{company_id}_{role}_{uuid.uuid4().hex[:4]}"
+
+        # 创建员工
+        employee = Employee(
+            id=employee_id,
+            company_id=company_id,
+            name=name,
+            role=Role(role),
+            level=level,
+            experience=experience
+        )
+
+        # 设置自定义属性
+        employee.ai_personality = ai_personality
+        employee.decision_style = decision_style
+
+        self.employees[employee.id] = employee
+        company.size += 1  # 增加公司规模
+
+        # 发布员工创建事件
+        event = GameEvent(
+            id=f"employee_created_{employee.id}",
+            type="employee_created",
+            timestamp=datetime.now(),
+            company_id=company_id,
+            description=f"{company.name} 雇佣了 {name} 作为 {role}",
+            data={
+                "employee_id": employee.id,
+                "name": name,
+                "role": role,
+                "level": level,
+                "experience": experience
+            }
+        )
+        self.events.append(event)
+        await self._update_cache_and_streams([event])
+
+        return employee
+
     async def _create_employees_for_company(self, company: Company):
         """为公司创建员工"""
         if company.company_type == CompanyType.CENTRALIZED:
@@ -1031,9 +1146,17 @@ class GameEngine:
     
     def resume(self):
         """恢复游戏"""
-        self.state = GameState.RUNNING
-        if self.mode == GameMode.AUTO:
-            asyncio.create_task(self.start_auto_rounds())
+        if self.current_round == 0:
+            # 如果是第一次开始游戏，设置状态为运行
+            self.state = GameState.RUNNING
+            # 如果是自动模式，启动自动轮次
+            if self.mode == GameMode.AUTO:
+                asyncio.create_task(self.start_auto_rounds())
+        else:
+            # 如果是恢复已暂停的游戏
+            self.state = GameState.RUNNING
+            if self.mode == GameMode.AUTO:
+                asyncio.create_task(self.start_auto_rounds())
     
     def stop(self):
         """停止游戏"""

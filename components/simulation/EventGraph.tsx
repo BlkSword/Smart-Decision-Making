@@ -345,7 +345,9 @@ export const EventGraph: React.FC<EventGraphProps> = ({
     // 计算普通员工位置（围绕管理层的第二层圆环）
     const employeeRadius = 120;
     regularEmployees.forEach((employee, index) => {
-      const angle = (index / regularEmployees.length) * 2 * Math.PI;
+      const employeeCount = regularEmployees.length;
+      // 修复偶数员工数量显示问题，添加偏移量避免节点重叠
+      const angle = (index / employeeCount) * 2 * Math.PI + (employeeCount % 2 === 0 ? Math.PI / employeeCount : 0);
       arrangedEmployees.push({
         ...employee,
         x: companyX + employeeRadius * Math.cos(angle),

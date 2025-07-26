@@ -35,12 +35,22 @@ async def start_simulation():
     if engine.state.value == "running":
         return {"message": "Simulation is already running"}
     
-    await engine.initialize()
+    # 如果是第一次启动游戏
+    if engine.current_round == 0:
+        # 重新初始化游戏并开始
+        await engine.initialize(auto_start=True)
+    else:
+        # 如果是恢复已停止的游戏
+        engine.state = GameState.RUNNING
+        # 如果是自动模式，启动自动轮次
+        if engine.mode == GameMode.AUTO:
+            asyncio.create_task(engine.start_auto_rounds())
     
     return {
         "message": "Simulation started successfully",
         "status": engine.state.value,
-        "companies": len(engine.companies)
+        "companies": len(engine.companies),
+        "current_round": engine.current_round
     }
 
 @router.post("/pause")
@@ -172,6 +182,10 @@ async def get_recent_decisions(
                 "employee_id": d.employee_id,
                 "employee_name": employees.get(d.employee_id, {}).name if employees.get(d.employee_id) else "Unknown Employee",
                 "employee_role": employees.get(d.employee_id, {}).role.value if employees.get(d.employee_id) else "Unknown Role",
+                "employee_level": employees.get(d.employee_id, {}).level if employees.get(d.employee_id) else None,
+                "employee_experience": employees.get(d.employee_id, {}).experience if employees.get(d.employee_id) else None,
+                "employee_ai_personality": employees.get(d.employee_id, {}).ai_personality if employees.get(d.employee_id) else None,
+                "employee_decision_style": employees.get(d.employee_id, {}).decision_style if employees.get(d.employee_id) else None,
                 "decision_type": d.decision_type.value,
                 "content": d.content,
                 "created_at": d.created_at.isoformat(),

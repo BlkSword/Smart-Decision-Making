@@ -5,18 +5,27 @@ import uuid
 from pydantic import BaseModel
 
 from models.company import Company, CompanyType
+from models.employee import Role
 from core.game_engine import GameEngine
 from core.cache_manager import cache_manager
 
 router = APIRouter()
 
 # 请求模型
+class EmployeeInfo(BaseModel):
+    role: str
+    level: int
+    experience: int
+    ai_personality: str
+    decision_style: str
+
 class CreateCompanyRequest(BaseModel):
     name: str
     type: str  # 前端传递的字段名是 'type'
     initial_funding: int = 50000
     size: int = 10
     description: Optional[str] = None
+    employees: Optional[List[EmployeeInfo]] = None
 
 # 获取游戏引擎实例
 def get_game_engine():
@@ -99,8 +108,37 @@ async def create_company(request: CreateCompanyRequest):
     # 添加到游戏引擎
     engine.companies[company_id] = company
     
-    # 创建员工
-    await engine._create_employees_for_company(company)
+    # 如果提供了员工信息，则使用这些信息创建员工
+    if request.employees:
+        for emp_info in request.employees:
+            # 验证角色
+            try:
+                role = Role(emp_info.role.lower())
+            except ValueError:
+                raise HTTPException(
+                    status_code=400,
+                    detail=f"Invalid role: {emp_info.role}"
+                )
+            
+            # 验证等级
+            if not 1 <= emp_info.level <= 3:
+                raise HTTPException(
+                    status_code=400,
+                    detail="Employee level must be between 1 and 3"
+                )
+                
+            await engine.create_employee(
+                company_id=company_id,
+                name=engine._generate_unique_name(company.name, role),
+                role=emp_info.role.lower(),
+                level=emp_info.level,
+                experience=emp_info.experience,
+                ai_personality=emp_info.ai_personality,
+                decision_style=emp_info.decision_style
+            )
+    else:
+        # 创建员工
+        await engine._create_employees_for_company(company)
     
     return company.to_dict()
 
@@ -148,66 +186,3 @@ async def delete_company(company_id: str):
         del engine.employees[emp_id]
     
     return {"message": "Company deleted successfully"}
-
-@router.get("/{company_id}/stats", response_model=dict)
-async def get_company_stats(company_id: str):
-    """获取公司统计信息"""
-    engine = get_game_engine()
-    company = engine.get_company(company_id)
-    
-    if not company:
-        raise HTTPException(status_code=404, detail="Company not found")
-    
-    # 获取员工信息
-    employees = engine.get_employees(company_id)
-    
-    # 获取最近决策
-    recent_decisions = engine.get_recent_decisions(company_id, limit=10)
-    
-    # 获取最近事件
-    recent_events = engine.get_recent_events(company_id, limit=20)
-    
-    # 计算统计信息
-    role_distribution = {}
-    for emp in employees:
-        role = emp.role.value
-        role_distribution[role] = role_distribution.get(role, 0) + 1
-    
-    avg_performance = sum(emp.performance for emp in employees) / len(employees) if employees else 0
-    total_experience = sum(emp.experience for emp in employees)
-    
-    decision_types = {}
-    for decision in recent_decisions:
-        dt = decision.decision_type.value
-        decision_types[dt] = decision_types.get(dt, 0) + 1
-    
-    return {
-        "company": company.to_dict(),
-        "employee_count": len(employees),
-        "role_distribution": role_distribution,
-        "average_performance": round(avg_performance, 2),
-        "total_experience": total_experience,
-        "recent_decisions_count": len(recent_decisions),
-        "decision_type_distribution": decision_types,
-        "recent_events_count": len(recent_events),
-        "hierarchy_depth": company.get_hierarchy_depth()
-    }
-
-@router.post("/{company_id}/funding")
-async def add_funding(company_id: str, amount: int):
-    """为公司添加资金"""
-    engine = get_game_engine()
-    company = engine.get_company(company_id)
-    
-    if not company:
-        raise HTTPException(status_code=404, detail="Company not found")
-    
-    if amount <= 0:
-        raise HTTPException(status_code=400, detail="Amount must be positive")
-    
-    company.update_funds(amount)
-    
-    return {
-        "message": f"Added {amount} funds to {company.name}",
-        "new_balance": company.funds
-    }

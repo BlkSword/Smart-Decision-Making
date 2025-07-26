@@ -38,7 +38,7 @@ app = FastAPI(
 # CORS配置
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # 在生产环境中应该设置具体的域名
+    allow_origins=["*"],  
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -164,8 +164,8 @@ async def startup_event():
     # 初始化流管理器
     await stream_manager.initialize()
     
-    # 初始化游戏引擎
-    await game_engine.initialize()
+    # 初始化游戏引擎，但不自动开始运行
+    await game_engine.initialize(auto_start=False)
     
     # 启动Redis性能监控
     await redis_monitor.start_monitoring()
@@ -205,8 +205,10 @@ async def background_simulation_task():
             # 等待配置的轮次间隔
             await asyncio.sleep(game_engine.config.get('round_interval', 30))
             
-            # 只有在自动模式下才执行轮次
-            if game_engine.mode.value == 'auto' and game_engine.state.value == 'running':
+            # 只有在自动模式下且游戏真正运行时才执行轮次
+            if (game_engine.mode.value == 'auto' and 
+                game_engine.state.value == 'running' and
+                game_engine.current_round > 0):  # 确保游戏已正式启动
                 events = await game_engine.execute_round()
                 
                 # 广播事件到所有连接的客户端

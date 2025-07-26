@@ -39,6 +39,13 @@ class Decision:
     ai_model: Optional[str] = None
     cost: float = 0.0
     
+    # 员工AI属性
+    employee_ai_personality: Optional[str] = None
+    employee_decision_style: Optional[str] = None
+    employee_role: Optional[str] = None
+    employee_level: Optional[int] = None
+    employee_experience: Optional[int] = None
+    
     # 决策结果
     outcome: Optional[str] = None
     impact_score: Optional[float] = None
@@ -145,6 +152,11 @@ class Decision:
             "id": self.id,
             "company_id": self.company_id,
             "employee_id": self.employee_id,
+            "employee_role": self.employee_role,
+            "employee_level": self.employee_level,
+            "employee_experience": self.employee_experience,
+            "employee_ai_personality": self.employee_ai_personality,
+            "employee_decision_style": self.employee_decision_style,
             "decision_type": self.decision_type.value,
             "content": self.content,
             "created_at": self.created_at.isoformat(),

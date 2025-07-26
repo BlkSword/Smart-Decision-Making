@@ -16,6 +16,10 @@ interface AILogEntry {
   employee_id: string;
   employee_name?: string;
   employee_role?: string;
+  employee_level?: number;
+  employee_experience?: number;
+  employee_ai_personality?: string;
+  employee_decision_style?: string;
   request_type: string;
   prompt?: string;
   response?: string;
@@ -34,10 +38,15 @@ interface AILogEntry {
 interface DecisionData {
   id: string;
   company_id: string;
-  company_name: string;
+  company_name?: string;
+  company_type?: string;
   employee_id: string;
-  employee_name: string;
+  employee_name?: string;
   employee_role: string;
+  employee_level?: number;
+  employee_experience?: number;
+  employee_ai_personality?: string;
+  employee_decision_style?: string;
   decision_type: string;
   content: string;
   created_at: string;
@@ -56,6 +65,8 @@ interface DecisionData {
   started_at: string | null;
   completed_at: string | null;
   outcome: string | null;
+  priority_score: number;
+  execution_time: number | null;
 }
 
 interface AILogPanelProps {
@@ -96,17 +107,21 @@ export const AILogPanel: React.FC<AILogPanelProps> = ({ companyId }) => {
     const hasAIProvider = decision.ai_provider && decision.ai_provider !== null;
 
     // 生成提示词内容
-    const prompt = `为${decision.company_name}的${decision.employee_role}${decision.employee_name}生成${decision.decision_type}类型的决策内容`;
+    const prompt = `为${decision.company_name || '未知公司'}的${decision.employee_role}${decision.employee_name || ''}生成${decision.decision_type}类型的决策内容`;
 
     return {
       id: decision.id,
       timestamp: decision.created_at,
       type: hasAIProvider ? 'response' : 'error',
       company_id: decision.company_id,
-      company_name: decision.company_name,
+      company_name: decision.company_name ?? undefined,
       employee_id: decision.employee_id,
-      employee_name: decision.employee_name,
+      employee_name: decision.employee_name ?? undefined,
       employee_role: decision.employee_role,
+      employee_level: decision.employee_level ?? undefined,
+      employee_experience: decision.employee_experience ?? undefined,
+      employee_ai_personality: decision.employee_ai_personality ?? undefined,
+      employee_decision_style: decision.employee_decision_style ?? undefined,
       request_type: decision.decision_type,
       prompt: prompt,
       response: hasAIProvider ? decision.content : undefined,
@@ -128,7 +143,7 @@ export const AILogPanel: React.FC<AILogPanelProps> = ({ companyId }) => {
       setDecisionsData(decisions); // 保存原始决策数据
       const logEntries = decisions.map(convertDecisionToLog);
       // 按时间排序，最新的在上面
-      logEntries.sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
+      logEntries.sort((a: AILogEntry, b: AILogEntry) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
       setLogs(logEntries);
     };
 
@@ -315,14 +330,39 @@ export const AILogPanel: React.FC<AILogPanelProps> = ({ companyId }) => {
                   className={`p-3 rounded-lg border ${getStatusColor(log.status)}`}
                 >
                   <div className="flex items-start justify-between mb-2">
-                    <div className="flex items-center gap-2">
-                      {getStatusIcon(log.status)}
-                      <span className="font-medium text-sm">
-                        {log.company_name} - {log.employee_name}
-                      </span>
-                      <Badge variant="secondary" className="text-xs text-gray-700 bg-gray-200">
-                        {log.employee_role}
-                      </Badge>
+                    <div className="flex items-start space-x-3">
+                      <div className="mt-0.5">
+                        {getStatusIcon(log.status)}
+                      </div>
+                      <div className="space-y-1">
+                        <div className="flex items-center space-x-2">
+                          <span className="font-medium text-sm">
+                            {log.company_name || '未知公司'} - {log.employee_role} {log.employee_name || ''}
+                          </span>
+                          <Badge className={`text-xs ${getStatusColor(log.status)}`}>
+                            {log.status}
+                          </Badge>
+                        </div>
+
+                        {/* 员工AI属性信息 */}
+                        <div className="flex flex-wrap gap-2 text-xs">
+                          {log.employee_level && (
+                            <Badge variant="outline" className="text-black">等级: {log.employee_level}</Badge>
+                          )}
+                          {log.employee_experience && (
+                            <Badge variant="outline" className="text-black">经验: {log.employee_experience}</Badge>
+                          )}
+                          {log.employee_ai_personality && (
+                            <Badge variant="outline" className="text-black">性格: {log.employee_ai_personality.split('、')[0]}</Badge>
+                          )}
+                          {log.employee_decision_style && (
+                            <Badge variant="outline" className="text-black">决策: {log.employee_decision_style}</Badge>
+                          )}
+                        </div>
+                        <p className="text-xs text-muted-foreground">
+                          时间: {new Date(log.timestamp).toLocaleString()} | 费用: ¥{log.cost.toFixed(4)}
+                        </p>
+                      </div>
                     </div>
                     <div className="flex items-center gap-2 text-xs text-muted-foreground">
                       <span>{formatTime(log.timestamp)}</span>
