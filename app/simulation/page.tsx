@@ -338,6 +338,35 @@ export default function SimulationPage() {
     loadSimulationData(false, false);
   };
 
+  // 处理删除公司
+  const handleDeleteCompany = async (companyId: string) => {
+    try {
+      const response = await fetch(`/api/companies/${companyId}`, {
+        method: 'DELETE',
+      });
+
+      if (response.ok) {
+        // 如果删除的是当前选中的公司，取消选中
+        if (selectedCompany === companyId) {
+          setSelectedCompany(null);
+        }
+        // 如果删除的是详情模态框中的公司，关闭模态框
+        if (detailsCompanyId === companyId) {
+          setShowDetailsModal(false);
+          setDetailsCompanyId(null);
+        }
+        // 重新加载数据
+        await loadSimulationData(false, false);
+      } else {
+        const errorData = await response.json();
+        setError(errorData.detail || 'Failed to delete company');
+      }
+    } catch (err) {
+      setError('Error deleting company');
+      console.error('Error deleting company:', err);
+    }
+  };
+
   // 处理关闭详情模态框
   const handleCloseDetailsModal = () => {
     setShowDetailsModal(false);
@@ -661,6 +690,7 @@ export default function SimulationPage() {
                 isSelected={selectedCompany === company.id}
                 onClick={() => setSelectedCompany(company.id)}
                 onDoubleClick={() => handleCompanyDoubleClick(company.id)}
+                onDelete={handleDeleteCompany}
               />
             ))}
           </div>

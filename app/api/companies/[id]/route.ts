@@ -37,3 +37,40 @@ export async function GET(
     );
   }
 }
+
+export async function DELETE(
+  request: NextRequest,
+  { params }: { params: { id: string } }
+) {
+  try {
+    const { id } = params;
+    
+    if (!id) {
+      return NextResponse.json({ error: 'Company ID is required' }, { status: 400 });
+    }
+    
+    const response = await fetch(`${BACKEND_URL}/api/companies/${id}`, {
+      method: 'DELETE',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+    });
+    
+    if (!response.ok) {
+      if (response.status === 404) {
+        return NextResponse.json({ error: 'Company not found' }, { status: 404 });
+      }
+      const errorData = await response.json();
+      return NextResponse.json(errorData, { status: response.status });
+    }
+    
+    const data = await response.json();
+    return NextResponse.json(data);
+  } catch (error) {
+    console.error('Error deleting company:', error);
+    return NextResponse.json(
+      { error: 'Internal server error' },
+      { status: 500 }
+    );
+  }
+}

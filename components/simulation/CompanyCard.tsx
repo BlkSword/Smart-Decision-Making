@@ -1,10 +1,14 @@
 'use client';
 
+import { useState } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { Building2, Users, DollarSign, TrendingUp } from 'lucide-react';
+import { Building2, DollarSign, Users, TrendingUp, Trash2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import { AnimatedCurrency, AnimatedCounter, AnimatedPercentage } from '@/components/ui/animated-number';
+import { AnimatedCurrency } from '@/components/ui/animated-number';
+import { AnimatedCounter } from '@/components/ui/animated-number';
+import { AnimatedPercentage } from '@/components/ui/animated-number';
 
 interface Company {
   id: string;
@@ -23,9 +27,12 @@ interface CompanyCardProps {
   isSelected?: boolean;
   onClick?: () => void;
   onDoubleClick?: () => void;
+  onDelete?: (companyId: string) => void;
 }
 
-export function CompanyCard({ company, isSelected = false, onClick, onDoubleClick }: CompanyCardProps) {
+export function CompanyCard({ company, isSelected = false, onClick, onDoubleClick, onDelete }: CompanyCardProps) {
+  const [isDeleting, setIsDeleting] = useState(false);
+  
   const handleClick = (e: React.MouseEvent) => {
     e.stopPropagation(); // 防止事件冒泡
     onClick?.();
@@ -35,7 +42,20 @@ export function CompanyCard({ company, isSelected = false, onClick, onDoubleClic
     e.stopPropagation(); // 防止事件冒泡
     onDoubleClick?.();
   };
-  // formatCurrency 函数已经被 AnimatedCurrency 组件替代
+  
+  const handleDelete = async (e: React.MouseEvent) => {
+    e.stopPropagation(); // 防止触发卡片点击事件
+    if (onDelete && !isDeleting) {
+      if (confirm(`确定要删除公司 "${company.name}" 吗？此操作不可撤销。`)) {
+        setIsDeleting(true);
+        try {
+          await onDelete(company.id);
+        } finally {
+          setIsDeleting(false);
+        }
+      }
+    }
+  };
 
   const getCompanyTypeLabel = (type: string) => {
     return type === 'centralized' ? '集权制' : '去中心化';
@@ -143,6 +163,16 @@ export function CompanyCard({ company, isSelected = false, onClick, onDoubleClic
               已选中
             </Badge>
           )}
+          
+          <Button
+            variant="ghost"
+            size="sm"
+            className="h-6 w-6 p-0 hover:bg-destructive hover:text-destructive-foreground"
+            onClick={handleDelete}
+            disabled={isDeleting}
+          >
+            <Trash2 className="h-4 w-4" />
+          </Button>
         </div>
       </CardContent>
     </Card>
