@@ -4,7 +4,7 @@
 
 # 队友GitHub链接
 一个基于此系统的玩法DLC
-https://github.com/George-is-not-available/multi-agent-business-simulator
+https://github.com/George-is-not-available/multi-agent-business-simulator(已放入本仓库的DLC目录)
 
 ## 核心功能
 
