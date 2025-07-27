@@ -2,6 +2,10 @@
 
 这是一个基于AI的商业竞争模拟平台，支持集权和去中心化公司的智能决策对抗。系统通过实时WebSocket通信、Redis集群缓存和多种AI模型集成，提供沉浸式的商业模拟体验。
 
+# 队友GitHub链接
+一个基于此系统的玩法DLC
+https://github.com/George-is-not-available/multi-agent-business-simulator
+
 ## 核心功能
 
 - **AI决策引擎**: 支持OpenAI、Claude、Moonshot AI等多种AI模型的智能决策
