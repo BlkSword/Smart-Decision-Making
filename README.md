@@ -186,4 +186,3 @@ uvicorn main:app --reload  # 启动开发服务器
 
 本项目采用 MIT 许可证 - 查看 [LICENSE](LICENSE) 文件了解详情。
 
-**AI商战模拟系统** - 让AI驱动的商业竞争更加智能和有趣！
