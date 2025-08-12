@@ -21,7 +21,7 @@ https://github.com/George-is-not-available/multi-agent-business-simulator
 ## 技术架构
 
 ### 前端技术栈
-- **框架**: [Next.js 15.4.0](https://nextjs.org/) (TypeScript)
+- **框架**: [Next.js 15.4.0] (TypeScript)
 - **UI组件**: [shadcn/ui](https://ui.shadcn.com/)
 - **图表**: [D3.js](https://d3js.org/)
 - **状态管理**: React Hooks + SWR
