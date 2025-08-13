@@ -122,7 +122,7 @@ uvicorn main:app --host 0.0.0.0 --port 8000 --reload
 npm run dev
 ```
 
-访问 [http://localhost:3000](http://localhost:3000) 查看应用。
+访问 [http://localhost:3000](http://localhost:3000) 查看应用
 
 ## 系统特性
 
