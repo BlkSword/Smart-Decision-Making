@@ -1,190 +1,77 @@
-# 智慧体智能决策模拟系统
+# 智能决策引擎
 
-这是一个基于AI的商业竞争模拟平台，支持集权和去中心化公司的智能决策对抗。系统通过实时WebSocket通信、Redis集群缓存和多种AI模型集成，提供沉浸式的商业模拟体验。
+这是一个为游戏NPC或AI设计的智能决策引擎框架，具备以下核心功能：
 
-# 队友GitHub链接
-一个基于此系统的玩法DLC
-https://github.com/George-is-not-available/multi-agent-business-simulator
+## 核心特性
 
-(已放入本仓库的DLC目录)
+1. **智能体实时感知** - 分布式决策机制
+2. **互相学习算法** - 基于历史决策的快速响应
+3. **共享情景库** - 实时感知当前状态，无需重复更新提示词
 
-## 核心功能
+## 项目结构
 
-- **AI决策引擎**: 支持OpenAI、Claude、Moonshot AI等多种AI模型的智能决策
-- **实时游戏引擎**: 自动步进、资金分配、商业规则执行
-- **公司管理**: 支持集权式和去中心化两种公司类型
-- **实时监控**: WebSocket通信、Redis流处理、性能监控
-- **可视化界面**: D3.js网络图、实时数据面板、事件图表
-- **多模式运行**: 自动模式和手动模式切换
-- **游戏总结**: 详细的统计数据和分析报告
-
-## 技术架构
-
-### 前端技术栈
-- **框架**: [Next.js 15.4.0] (TypeScript)
-- **UI组件**: [shadcn/ui](https://ui.shadcn.com/)
-- **图表**: [D3.js](https://d3js.org/)
-- **状态管理**: React Hooks + SWR
-- **实时通信**: WebSocket
-
-### 后端技术栈
-- **框架**: [FastAPI](https://fastapi.tiangolo.com/)
-- **数据库**: [PostgreSQL](https://www.postgresql.org/) / SQLite
-- **ORM**: [SQLAlchemy](https://www.sqlalchemy.org/)
-- **缓存**: [Redis Cluster](https://redis.io/)
-- **AI集成**: OpenAI, Claude, Moonshot AI
-- **实时通信**: WebSocket + Redis Streams
-
-### 开发工具
-- **包管理**: pnpm
-- **数据库迁移**: Drizzle ORM
-- **代码格式化**: Prettier + ESLint
-- **类型检查**: TypeScript
-
-## 快速开始
-
-### 环境要求
-- Node.js 18+
-- Python 3.8+
-- PostgreSQL 12+ (或 SQLite)
-- Redis 6+ (可选)
-
-### 1. 克隆项目
-```bash
-git clone <repository-url>
-cd ai-business-simulation
+```
+.
+├── decision_engine.py    # 决策引擎核心实现
+├── main.py              # FastAPI接口服务
+├── example_usage.py     # 使用示例
+├── requirements.txt     # 项目依赖
+└── README.md            # 项目说明文档
 ```
 
-### 2. 安装依赖
-```bash
-# 安装前端依赖
-npm install
+## 核心组件
 
-# 安装后端依赖
-cd backend
+### 1. Perception（感知）
+表示智能体对环境的感知信息，包括时间戳、数据和位置等。
+
+### 2. Decision（决策）
+表示智能体做出的决策，包括行为、置信度和上下文等。
+
+### 3. Situation（情景）
+表示特定情景的上下文信息，用于存储和检索相似场景。
+
+### 4. PerceptionSystem（感知系统）
+负责收集和处理智能体对环境的感知信息。
+
+### 5. SituationRepository（情景库）
+存储和管理各种情景及对应的决策。
+
+### 6. LearningSystem（学习系统）
+负责从历史决策中学习并优化决策过程。
+
+### 7. AIDecisionMaker（AI决策接口）
+定义AI辅助决策的抽象接口。
+
+### 8. DecisionEngine（决策引擎）
+整合所有系统，提供统一的决策接口。
+
+## 安装和运行
+
+1. 安装依赖：
+```bash
 pip install -r requirements.txt
-cd ..
 ```
 
-### 3. 环境配置
-
-#### 前端环境变量 (.env.local)
+2. 运行Web服务：
 ```bash
-# 后端API地址
-NEXT_PUBLIC_API_URL=http://localhost:8000
-
-# 数据库配置
-DATABASE_URL=postgresql://user:password@localhost:5432/ai_business_war
-
-# 认证配置
-JWT_SECRET=your-jwt-secret-here
+uvicorn main:app --reload
 ```
 
-#### 后端环境变量 (.env)
+3. 或者运行示例程序：
 ```bash
-# AI模型API密钥
-OPENAI_API_KEY=your_openai_api_key_here
-CLAUDE_API_KEY=your_claude_api_key_here
-MOONSHOT_API_KEY=your_moonshot_api_key_here
-
-# 数据库配置
-DATABASE_URL=postgresql://user:password@localhost:5432/ai_business_war
-
-# Redis配置 (可选)
-REDIS_HOST=127.0.0.1
-REDIS_PORT=6379
-REDIS_PASSWORD=your_redis_password
-
-# 应用配置
-DEBUG=True
-LOG_LEVEL=INFO
+python example_usage.py
 ```
 
-### 4. 数据库设置
-```bash
-# 设置数据库
-npm run db:setup
+## API接口
 
-# 运行迁移
-npm run db:migrate
+启动服务后，可以通过以下接口与决策引擎交互：
 
-# 初始化数据
-npm run db:seed
-```
+- `GET /` - 检查服务状态
+- `POST /perceive` - 添加感知信息
+- `POST /decision` - 基于感知信息做出决策
 
-### 5. 启动服务
-```bash
-# 启动后端服务
-cd backend
-uvicorn main:app --host 0.0.0.0 --port 8000 --reload
+## 扩展建议
 
-# 新终端启动前端服务
-npm run dev
-```
-
-访问 [http://localhost:3000](http://localhost:3000) 查看应用
-
-## 系统特性
-
-### AI决策系统
-- 支持多种AI模型集成
-- 智能决策逻辑
-- 成本控制和监控
-- 决策历史记录
-
-### 实时通信
-- WebSocket实时数据推送
-- Redis Streams事件流
-- 连接状态监控
-- 自动重连机制
-
-### 游戏引擎
-- 自动轮次执行
-- 手动模式控制
-- 事件系统
-- 资金和资源管理
-
-### 可视化界面
-- 实时数据面板
-- 公司状态卡片
-- 事件时间线
-- 网络关系图
-
-## 开发指南
-
-### 项目结构
-```
-ai-business-simulation/
-├── app/                    # Next.js应用页面
-├── backend/               # FastAPI后端
-│   ├── core/             # 核心模块
-│   ├── models/           # 数据模型
-│   └── routers/          # API路由
-├── components/           # React组件
-├── lib/                  # 工具库
-└── public/              # 静态资源
-```
-
-### 开发命令
-```bash
-# 前端开发
-npm run dev              # 启动开发服务器
-npm run build            # 构建生产版本
-npm run start            # 启动生产服务器
-
-# 数据库操作
-npm run db:setup         # 设置数据库
-npm run db:migrate       # 运行迁移
-npm run db:seed          # 初始化数据
-npm run db:studio        # 打开数据库管理界面
-
-# 后端开发
-cd backend
-uvicorn main:app --reload  # 启动开发服务器
-```
-
-
-## 许可证
-
-本项目采用 MIT 许可证 - 查看 [LICENSE](LICENSE) 文件了解详情。
-
+1. 可以实现更复杂的AI决策算法替换[SimpleAIDecisionMaker](file:///root/somefun/decision_engine.py#L151-L173)
+2. 可以扩展[SituationRepository](file:///root/somefun/decision_engine.py#L72-L109)以支持更复杂的情景相似度计算
+3. 可以增强[LearningSystem](file:///root/somefun/decision_engine.py#L112-L150)以支持更高级的机器学习算法
